@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>康复管理系统 - 管理端</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    body { font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .nav-item { transition: all 0.15s; }
+    .nav-item.active { background: #1e40af; color: #fff; }
+    .nav-item:not(.active):hover { background: #1e3a8a; color: #bfdbfe; }
+    .section { display: none; }
+    .section.active { display: block; }
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 50; }
+    .modal-overlay.open { display: flex; align-items: center; justify-content: center; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
+    .risk-high { background: #fee2e2; color: #dc2626; }
+    .risk-mid { background: #fef3c7; color: #d97706; }
+    .risk-low { background: #dcfce7; color: #16a34a; }
+    table { border-collapse: collapse; width: 100%; }
+    th { background: #f8fafc; font-size: 0.75rem; font-weight: 600; color: #64748b; text-align: left; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
+    td { font-size: 0.8rem; color: #374151; padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    tr:hover td { background: #f8fafc; }
+    .btn { display: inline-flex; align-items: center; gap: 4px; padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: all 0.15s; border: none; }
+    .btn-primary { background: #1d4ed8; color: #fff; }
+    .btn-primary:hover { background: #1e40af; }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-secondary { background: #e2e8f0; color: #374151; }
+    .btn-secondary:hover { background: #cbd5e1; }
+    .btn-sm { padding: 3px 10px; font-size: 0.72rem; }
+    input[type=text], input[type=number], input[type=password], select, textarea {
+      border: 1px solid #d1d5db; border-radius: 6px; padding: 7px 10px; font-size: 0.82rem; width: 100%;
+      outline: none; transition: border-color 0.15s; background: #fff;
+    }
+    input:focus, select:focus, textarea:focus { border-color: #3b82f6; }
+    label { font-size: 0.78rem; font-weight: 500; color: #374151; display: block; margin-bottom: 4px; }
+    .form-group { margin-bottom: 14px; }
+    .pagination { display: flex; gap: 4px; align-items: center; }
+    .page-btn { padding: 4px 10px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.75rem; cursor: pointer; background: #fff; }
+    .page-btn.active { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
+    .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .detail-row { display: flex; gap: 8px; margin-bottom: 8px; font-size: 0.78rem; }
+    .detail-label { color: #6b7280; min-width: 70px; }
+    .detail-value { color: #1f2937; font-weight: 500; }
+    .log-expand { cursor: pointer; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .log-expand.expanded { white-space: pre-wrap; max-width: none; }
+    .perm-check { width: 16px; height: 16px; cursor: pointer; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+
+<!-- 顶栏 -->
+<header class="bg-blue-900 text-white px-6 py-3 flex items-center justify-between shadow-lg flex-shrink-0">
+  <div class="flex items-center gap-3">
+    <div class="w-8 h-8 bg-blue-400 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">管</div>
+    <div>
+      <h1 class="text-base font-bold tracking-wide">康复管理系统</h1>
+      <p class="text-blue-300 text-xs">Rehabilitation Management System · Admin</p>
+    </div>
+  </div>
+  <a href="/" class="btn btn-secondary text-xs">← 返回用户端</a>
+</header>
+
+<!-- 主体布局 -->
+<div class="flex flex-1 min-h-0">
+
+  <!-- 左侧导航 -->
+  <nav class="w-44 bg-blue-900 flex-shrink-0 flex flex-col py-4 gap-1 px-2">
+    <button class="nav-item active text-left px-3 py-2 rounded-lg text-sm text-blue-100" onclick="showSection('dashboard')">📊 概览</button>
+    <button class="nav-item text-left px-3 py-2 rounded-lg text-sm text-blue-100" onclick="showSection('patients')">👥 患者档案</button>
+    <button class="nav-item text-left px-3 py-2 rounded-lg text-sm text-blue-100" onclick="showSection('actions')">🏋️ 动作库</button>
+    <button class="nav-item text-left px-3 py-2 rounded-lg text-sm text-blue-100" onclick="showSection('users')">👤 用户管理</button>
+    <button class="nav-item text-left px-3 py-2 rounded-lg text-sm text-blue-100" onclick="showSection('permissions')">🔐 权限管理</button>
+    <button class="nav-item text-left px-3 py-2 rounded-lg text-sm text-blue-100" onclick="showSection('logs')">📋 日志监控</button>
+  </nav>
+
+  <!-- 主内容区 -->
+  <main class="flex-1 overflow-auto p-6">
+
+    <!-- ═══ 概览 Dashboard ═══ -->
+    <div id="section-dashboard" class="section active">
+      <h2 class="text-xl font-bold text-gray-800 mb-5">系统概览</h2>
+      <!-- 统计卡片 -->
+      <div class="grid grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-xl shadow p-4">
+          <p class="text-xs text-gray-500 mb-1">患者总数</p>
+          <p id="stat-patients" class="text-3xl font-bold text-blue-700">—</p>
+        </div>
+        <div class="bg-white rounded-xl shadow p-4">
+          <p class="text-xs text-gray-500 mb-1">高风险预警</p>
+          <p id="stat-highrisk" class="text-3xl font-bold text-red-600">—</p>
+        </div>
+        <div class="bg-white rounded-xl shadow p-4">
+          <p class="text-xs text-gray-500 mb-1">今日会话</p>
+          <p id="stat-sessions" class="text-3xl font-bold text-green-600">—</p>
+        </div>
+        <div class="bg-white rounded-xl shadow p-4">
+          <p class="text-xs text-gray-500 mb-1">动作库数量</p>
+          <p id="stat-actions" class="text-3xl font-bold text-purple-600">—</p>
+        </div>
+      </div>
+      <!-- 图表 + 近期患者 -->
+      <div class="grid grid-cols-3 gap-4 mb-6">
+        <div class="bg-white rounded-xl shadow p-4">
+          <p class="text-sm font-semibold text-gray-700 mb-3">康复阶段分布</p>
+          <canvas id="stageChart" height="200"></canvas>
+        </div>
+        <div class="bg-white rounded-xl shadow p-4">
+          <p class="text-sm font-semibold text-gray-700 mb-3">伤情类型 Top 5</p>
+          <canvas id="injuryChart" height="200"></canvas>
+        </div>
+        <div class="bg-white rounded-xl shadow p-4">
+          <p class="text-sm font-semibold text-gray-700 mb-3">近期患者</p>
+          <div id="recent-patients" class="space-y-2"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 患者档案 ═══ -->
+    <div id="section-patients" class="section">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold text-gray-800">患者档案</h2>
+        <button class="btn btn-primary" onclick="openCreatePatientModal()">+ 新建患者</button>
+      </div>
+      <!-- 筛选栏 -->
+      <div class="bg-white rounded-xl shadow p-4 mb-4 flex gap-3 items-end flex-wrap">
+        <div class="flex-1 min-w-32">
+          <label>搜索</label>
+          <input type="text" id="pt-search" placeholder="姓名/伤情/单位..." oninput="loadPatients(1)">
+        </div>
+        <div>
+          <label>康复阶段</label>
+          <select id="pt-stage-filter" onchange="loadPatients(1)">
+            <option value="">全部阶段</option>
+            <option>急性期</option><option>亚急性期</option><option>恢复期</option><option>强化期</option><option>未知</option>
+          </select>
+        </div>
+        <div>
+          <label>角色</label>
+          <select id="pt-role-filter" onchange="loadPatients(1)">
+            <option value="">全部角色</option>
+            <option>学员</option><option>教员</option><option>医生</option>
+          </select>
+        </div>
+      </div>
+      <!-- 表格 -->
+      <div class="bg-white rounded-xl shadow overflow-hidden">
+        <table>
+          <thead>
+            <tr>
+              <th>姓名</th><th>角色</th><th>伤情</th><th>阶段</th><th>疼痛</th><th>创建时间</th><th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="pt-tbody"></tbody>
+        </table>
+        <div class="p-4 flex items-center justify-between">
+          <span id="pt-count" class="text-xs text-gray-400"></span>
+          <div id="pt-pagination" class="pagination"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 动作库 ═══ -->
+    <div id="section-actions" class="section">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold text-gray-800">动作库</h2>
+        <button class="btn btn-primary" onclick="openCreateActionModal()">+ 新建动作</button>
+      </div>
+      <div class="bg-white rounded-xl shadow p-4 mb-4 flex gap-3 items-end flex-wrap">
+        <div class="flex-1 min-w-32">
+          <label>搜索</label>
+          <input type="text" id="act-search" placeholder="名称/描述/标签..." oninput="loadActions(1)">
+        </div>
+        <div>
+          <label>阶段</label>
+          <select id="act-stage-filter" onchange="loadActions(1)">
+            <option value="">全部阶段</option>
+            <option>急性期</option><option>亚急性期</option><option>恢复期</option><option>强化期</option><option>通用</option>
+          </select>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl shadow overflow-hidden">
+        <table>
+          <thead>
+            <tr><th>名称</th><th>阶段</th><th>适用伤情</th><th>组数/次数</th><th>标签</th><th>操作</th></tr>
+          </thead>
+          <tbody id="act-tbody"></tbody>
+        </table>
+        <div class="p-4 flex items-center justify-between">
+          <span id="act-count" class="text-xs text-gray-400"></span>
+          <div id="act-pagination" class="pagination"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 用户管理 ═══ -->
+    <div id="section-users" class="section">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold text-gray-800">用户管理</h2>
+        <button class="btn btn-primary" onclick="openCreateUserModal()">+ 新建用户</button>
+      </div>
+      <div class="bg-white rounded-xl shadow overflow-hidden">
+        <table>
+          <thead>
+            <tr><th>用户名</th><th>角色</th><th>权限</th><th>创建时间</th><th>操作</th></tr>
+          </thead>
+          <tbody id="usr-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══ 权限管理 ═══ -->
+    <div id="section-permissions" class="section">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold text-gray-800">权限管理</h2>
+        <button class="btn btn-primary" onclick="savePermissions()">保存权限</button>
+      </div>
+      <div class="bg-white rounded-xl shadow overflow-hidden">
+        <table id="perm-table">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="text-xs text-gray-400 mt-2">勾选对应格子即可设置该角色的权限，点击"保存权限"批量同步所有用户。</p>
+    </div>
+
+    <!-- ═══ 日志监控 ═══ -->
+    <div id="section-logs" class="section">
+      <h2 class="text-xl font-bold text-gray-800 mb-4">日志监控</h2>
+      <!-- Tab -->
+      <div class="flex gap-2 mb-4">
+        <button id="log-tab-tools" class="btn btn-primary btn-sm" onclick="switchLogTab('tools')">工具调用日志</button>
+        <button id="log-tab-feedback" class="btn btn-secondary btn-sm" onclick="switchLogTab('feedback')">训练反馈日志</button>
+        <button id="log-tab-system" class="btn btn-secondary btn-sm" onclick="switchLogTab('system')">系统状态</button>
+      </div>
+
+      <!-- 工具调用日志 -->
+      <div id="log-tools-panel">
+        <div class="bg-white rounded-xl shadow overflow-hidden">
+          <table>
+            <thead>
+              <tr><th>时间</th><th>会话ID</th><th>患者</th><th>工具</th><th>输入摘要</th><th>结果摘要</th></tr>
+            </thead>
+            <tbody id="tc-tbody"></tbody>
+          </table>
+          <div class="p-4 flex items-center justify-between">
+            <span id="tc-count" class="text-xs text-gray-400"></span>
+            <div id="tc-pagination" class="pagination"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 训练反馈日志 -->
+      <div id="log-feedback-panel" style="display:none">
+        <div class="flex gap-3 mb-3 items-end">
+          <div>
+            <label>风险筛选</label>
+            <select id="fb-risk-filter" onchange="loadFeedbackLogs(1)">
+              <option value="">全部</option>
+              <option>高风险</option><option>中风险</option><option>低风险</option>
+            </select>
+          </div>
+        </div>
+        <div class="bg-white rounded-xl shadow overflow-hidden">
+          <table>
+            <thead>
+              <tr><th>时间</th><th>患者</th><th>类型</th><th>内容</th><th>风险等级</th><th>建议行动</th></tr>
+            </thead>
+            <tbody id="fb-tbody"></tbody>
+          </table>
+          <div class="p-4 flex items-center justify-between">
+            <span id="fb-count" class="text-xs text-gray-400"></span>
+            <div id="fb-pagination" class="pagination"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 系统状态 -->
+      <div id="log-system-panel" style="display:none">
+        <div class="bg-white rounded-xl shadow p-5 space-y-3 text-sm">
+          <div class="detail-row"><span class="detail-label">DB 路径</span><span id="sys-db-path" class="detail-value font-mono text-xs">—</span></div>
+          <div class="detail-row"><span class="detail-label">总患者数</span><span id="sys-patients" class="detail-value">—</span></div>
+          <div class="detail-row"><span class="detail-label">总会话数</span><span id="sys-sessions" class="detail-value">—</span></div>
+          <div class="detail-row"><span class="detail-label">总工具调用</span><span id="sys-tools" class="detail-value">—</span></div>
+          <div class="detail-row"><span class="detail-label">今日会话</span><span id="sys-today" class="detail-value">—</span></div>
+          <div class="mt-4">
+            <p class="font-semibold text-gray-600 mb-2">当前 Session State（活跃）</p>
+            <pre id="sys-state" class="bg-gray-50 rounded p-3 text-xs text-gray-700 overflow-auto max-h-48">—</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ═══ 患者 Modal ═══ -->
+<div id="modal-patient" class="modal-overlay" onclick="if(event.target===this)closeModal('modal-patient')">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl mx-4 max-h-screen overflow-auto">
+    <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+      <h3 id="modal-patient-title" class="text-base font-bold text-gray-800">新建患者</h3>
+      <button onclick="closeModal('modal-patient')" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+    </div>
+    <div class="p-5">
+      <input type="hidden" id="pt-edit-id">
+      <div class="grid grid-cols-2 gap-4">
+        <div class="form-group col-span-2"><label>姓名 *</label><input type="text" id="pt-f-name" placeholder="请输入姓名"></div>
+        <div class="form-group"><label>角色</label>
+          <select id="pt-f-role"><option>学员</option><option>教员</option><option>医生</option></select></div>
+        <div class="form-group"><label>性别</label>
+          <select id="pt-f-gender"><option value="">不填</option><option>男</option><option>女</option></select></div>
+        <div class="form-group"><label>年龄</label><input type="number" id="pt-f-age" min="1" max="100" placeholder="岁"></div>
+        <div class="form-group"><label>所属单位</label><input type="text" id="pt-f-unit" placeholder="班级/部门"></div>
+        <div class="form-group"><label>联系电话</label><input type="text" id="pt-f-phone" placeholder="手机号"></div>
+        <div class="form-group"><label>疼痛评分（1-10）</label><input type="number" id="pt-f-pain" min="1" max="10" placeholder="1~10"></div>
+        <div class="form-group col-span-2"><label>伤情描述</label>
+          <textarea id="pt-f-injury" rows="2" placeholder="受伤部位、伤情类型、受伤时间..."></textarea></div>
+        <div class="form-group col-span-2"><label>康复阶段</label>
+          <select id="pt-f-stage"><option>未知</option><option>急性期</option><option>亚急性期</option><option>恢复期</option><option>强化期</option></select></div>
+        <div class="form-group col-span-2"><label>备注</label>
+          <textarea id="pt-f-notes" rows="2" placeholder="既往史、用药情况等"></textarea></div>
+      </div>
+    </div>
+    <div class="p-5 border-t border-gray-100 flex justify-end gap-2">
+      <button class="btn btn-secondary" onclick="closeModal('modal-patient')">取消</button>
+      <button class="btn btn-primary" onclick="savePatient()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 患者详情 Modal ═══ -->
+<div id="modal-patient-detail" class="modal-overlay" onclick="if(event.target===this)closeModal('modal-patient-detail')">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-screen overflow-auto">
+    <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+      <h3 id="detail-name" class="text-base font-bold text-gray-800">患者详情</h3>
+      <button onclick="closeModal('modal-patient-detail')" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+    </div>
+    <div class="p-5" id="detail-content"></div>
+    <!-- AI 画像区 -->
+    <div class="px-5 pb-5">
+      <div class="border border-blue-200 rounded-lg p-4 bg-blue-50">
+        <p class="text-sm font-semibold text-blue-800 mb-2">AI 生成画像</p>
+        <p class="text-xs text-gray-500 mb-2">需提供 API Key 才能调用 AI 生成（会存入 localStorage）</p>
+        <div class="flex gap-2 mb-3">
+          <input type="password" id="profile-api-key" placeholder="API Key (sk-ant-...)" class="flex-1">
+          <select id="profile-provider" style="width:100px">
+            <option value="claude">Claude</option>
+            <option value="openai">OpenAI</option>
+            <option value="deepseek">DeepSeek</option>
+          </select>
+        </div>
+        <textarea id="profile-input-text" rows="2" placeholder="可额外补充医疗记录文字（可选）..." class="mb-3"></textarea>
+        <textarea id="profile-output-text" rows="3" placeholder="AI 画像将显示在此处，可编辑后保存..." class="mb-3"></textarea>
+        <div class="flex gap-2">
+          <button class="btn btn-primary btn-sm" onclick="generateProfile()">AI 生成画像</button>
+          <button class="btn btn-secondary btn-sm" onclick="saveProfile()">保存画像</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 动作 Modal ═══ -->
+<div id="modal-action" class="modal-overlay" onclick="if(event.target===this)closeModal('modal-action')">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl mx-4 max-h-screen overflow-auto">
+    <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+      <h3 id="modal-action-title" class="text-base font-bold text-gray-800">新建动作</h3>
+      <button onclick="closeModal('modal-action')" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+    </div>
+    <div class="p-5">
+      <input type="hidden" id="act-edit-id">
+      <div class="grid grid-cols-2 gap-4">
+        <div class="form-group col-span-2"><label>动作名称 *</label><input type="text" id="act-f-name" placeholder="如：踝泵练习"></div>
+        <div class="form-group"><label>适用阶段</label>
+          <select id="act-f-stage"><option value="">通用</option><option>急性期</option><option>亚急性期</option><option>恢复期</option><option>强化期</option></select></div>
+        <div class="form-group"><label>适用伤情（逗号分隔）</label><input type="text" id="act-f-injury-types" placeholder="踝关节扭伤,膝关节损伤"></div>
+        <div class="form-group col-span-2"><label>动作说明</label>
+          <textarea id="act-f-desc" rows="2" placeholder="详细描述动作方法..."></textarea></div>
+        <div class="form-group"><label>组数/次数</label><input type="text" id="act-f-reps" placeholder="10次/组，3组/天"></div>
+        <div class="form-group"><label>注意事项</label><input type="text" id="act-f-precautions" placeholder="注意事项..."></div>
+        <div class="form-group col-span-2"><label>视频链接（可选）</label><input type="text" id="act-f-video" placeholder="https://..."></div>
+        <div class="form-group col-span-2"><label>标签（逗号分隔）</label><input type="text" id="act-f-tags" placeholder="急性期,消炎,循环"></div>
+      </div>
+    </div>
+    <div class="p-5 border-t border-gray-100 flex justify-end gap-2">
+      <button class="btn btn-secondary" onclick="closeModal('modal-action')">取消</button>
+      <button class="btn btn-primary" onclick="saveAction()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 用户 Modal ═══ -->
+<div id="modal-user" class="modal-overlay" onclick="if(event.target===this)closeModal('modal-user')">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+    <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+      <h3 id="modal-user-title" class="text-base font-bold text-gray-800">新建用户</h3>
+      <button onclick="closeModal('modal-user')" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+    </div>
+    <div class="p-5">
+      <input type="hidden" id="usr-edit-id">
+      <div class="form-group"><label>用户名 *</label><input type="text" id="usr-f-name" placeholder="请输入用户名"></div>
+      <div class="form-group"><label>角色</label>
+        <select id="usr-f-role">
+          <option>学员</option><option>教员</option><option>医生</option><option>管理员</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>权限（多选）</label>
+        <div id="usr-perms" class="space-y-2 mt-1">
+          <label class="flex items-center gap-2 text-sm"><input type="checkbox" value="查看患者"> 查看患者</label>
+          <label class="flex items-center gap-2 text-sm"><input type="checkbox" value="编辑患者"> 编辑患者</label>
+          <label class="flex items-center gap-2 text-sm"><input type="checkbox" value="删除患者"> 删除患者</label>
+          <label class="flex items-center gap-2 text-sm"><input type="checkbox" value="管理动作库"> 管理动作库</label>
+          <label class="flex items-center gap-2 text-sm"><input type="checkbox" value="查看日志"> 查看日志</label>
+          <label class="flex items-center gap-2 text-sm"><input type="checkbox" value="系统配置"> 系统配置</label>
+        </div>
+      </div>
+    </div>
+    <div class="p-5 border-t border-gray-100 flex justify-end gap-2">
+      <button class="btn btn-secondary" onclick="closeModal('modal-user')">取消</button>
+      <button class="btn btn-primary" onclick="saveUser()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Toast ═══ -->
+<div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-green-600 text-white text-sm px-5 py-2 rounded-full shadow-lg z-[100] transition-opacity opacity-0 pointer-events-none"></div>
+
+<script>
+// ═══ 全局变量 ═══
+let stageChart = null, injuryChart = null;
+let currentPatientId = null;
+const ALL_PERMS = ['查看患者','编辑患者','删除患者','管理动作库','查看日志','系统配置'];
+const ALL_ROLES = ['学员','教员','医生','管理员'];
+// 权限矩阵内存（角色 -> 权限数组），先从用户数据聚合
+let permMatrix = {};
+
+// ═══ 导航 ═══
+function showSection(name) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('section-' + name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(b => {
+    if (b.textContent.trim().includes({ dashboard:'概览', patients:'患者', actions:'动作', users:'用户', permissions:'权限', logs:'日志' }[name])) {
+      b.classList.add('active');
+    }
+  });
+  if (name === 'dashboard') loadStats();
+  if (name === 'patients') loadPatients(1);
+  if (name === 'actions') loadActions(1);
+  if (name === 'users') loadUsers();
+  if (name === 'permissions') loadPermissionMatrix();
+  if (name === 'logs') { switchLogTab('tools'); }
+}
+
+// ═══ Dashboard ═══
+async function loadStats() {
+  const data = await api('/admin/api/stats');
+  document.getElementById('stat-patients').textContent = data.total_patients ?? 0;
+  document.getElementById('stat-highrisk').textContent = data.high_risk_count ?? 0;
+  document.getElementById('stat-sessions').textContent = data.today_sessions ?? 0;
+  document.getElementById('stat-actions').textContent = data.total_actions ?? 0;
+  renderStageChart(data.stage_distribution || {});
+  renderInjuryChart(data.injury_type_distribution || {});
+  // 近期患者
+  const el = document.getElementById('recent-patients');
+  el.innerHTML = '';
+  (data.recent_patients || []).forEach(p => {
+    el.innerHTML += `<div class="flex items-center justify-between py-1 border-b border-gray-100 text-xs">
+      <span class="font-medium">${esc(p.name)}</span>
+      <span class="text-gray-500">${esc(p.recovery_stage||'未知')}</span>
+    </div>`;
+  });
+  if (!data.recent_patients?.length) el.innerHTML = '<p class="text-gray-400 text-xs text-center py-4">暂无数据</p>';
+}
+
+function renderStageChart(data) {
+  const ctx = document.getElementById('stageChart').getContext('2d');
+  if (stageChart) stageChart.destroy();
+  const labels = Object.keys(data);
+  const values = Object.values(data);
+  stageChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data: values, backgroundColor: ['#ef4444','#f97316','#eab308','#22c55e','#94a3b8'] }]
+    },
+    options: { plugins: { legend: { position: 'bottom', labels: { font: { size: 10 } } } } }
+  });
+}
+
+function renderInjuryChart(data) {
+  const ctx = document.getElementById('injuryChart').getContext('2d');
+  if (injuryChart) injuryChart.destroy();
+  const labels = Object.keys(data);
+  const values = Object.values(data);
+  injuryChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: '方案数', data: values, backgroundColor: '#3b82f6' }]
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: { x: { ticks: { font: { size: 10 } } }, y: { ticks: { font: { size: 10 } } } }
+    }
+  });
+}
+
+// ═══ 患者档案 ═══
+let ptPage = 1;
+async function loadPatients(page = 1) {
+  ptPage = page;
+  const search = document.getElementById('pt-search').value;
+  const stage = document.getElementById('pt-stage-filter').value;
+  const role = document.getElementById('pt-role-filter').value;
+  const data = await api(`/admin/api/patients?search=${enc(search)}&stage=${enc(stage)}&role=${enc(role)}&page=${page}`);
+  const tbody = document.getElementById('pt-tbody');
+  tbody.innerHTML = '';
+  (data.items || []).forEach(p => {
+    const painColor = p.pain_level >= 7 ? 'text-red-600' : p.pain_level >= 4 ? 'text-yellow-600' : 'text-green-600';
+    tbody.innerHTML += `<tr>
+      <td class="font-medium">${esc(p.name)}</td>
+      <td>${esc(p.role||'学员')}</td>
+      <td class="max-w-xs truncate">${esc(p.injury_description||'—')}</td>
+      <td><span class="badge ${stageBadge(p.recovery_stage)}">${esc(p.recovery_stage||'未知')}</span></td>
+      <td class="${painColor} font-semibold">${p.pain_level ? p.pain_level+'/10' : '—'}</td>
+      <td class="text-gray-400">${esc((p.created_at||'').slice(0,16))}</td>
+      <td>
+        <div class="flex gap-1">
+          <button class="btn btn-secondary btn-sm" onclick="openPatientDetail(${p.id})">详情</button>
+          <button class="btn btn-secondary btn-sm" onclick="openEditPatientModal(${p.id})">编辑</button>
+          <button class="btn btn-danger btn-sm" onclick="deletePatient(${p.id})">删除</button>
+        </div>
+      </td>
+    </tr>`;
+  });
+  if (!data.items?.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-gray-400 py-8">暂无患者数据</td></tr>';
+  }
+  document.getElementById('pt-count').textContent = `共 ${data.total} 条`;
+  renderPagination('pt-pagination', data.page, data.pages, p => loadPatients(p));
+}
+
+function openCreatePatientModal() {
+  document.getElementById('modal-patient-title').textContent = '新建患者';
+  document.getElementById('pt-edit-id').value = '';
+  ['pt-f-name','pt-f-unit','pt-f-phone'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('pt-f-age').value = '';
+  document.getElementById('pt-f-pain').value = '';
+  document.getElementById('pt-f-injury').value = '';
+  document.getElementById('pt-f-notes').value = '';
+  document.getElementById('pt-f-role').value = '学员';
+  document.getElementById('pt-f-gender').value = '';
+  document.getElementById('pt-f-stage').value = '未知';
+  openModal('modal-patient');
+}
+
+async function openEditPatientModal(id) {
+  const p = await api(`/admin/api/patients/${id}`);
+  document.getElementById('modal-patient-title').textContent = '编辑患者';
+  document.getElementById('pt-edit-id').value = id;
+  document.getElementById('pt-f-name').value = p.name || '';
+  document.getElementById('pt-f-role').value = p.role || '学员';
+  document.getElementById('pt-f-gender').value = p.gender || '';
+  document.getElementById('pt-f-age').value = p.age || '';
+  document.getElementById('pt-f-unit').value = p.unit || '';
+  document.getElementById('pt-f-phone').value = p.phone || '';
+  document.getElementById('pt-f-pain').value = p.pain_level || '';
+  document.getElementById('pt-f-injury').value = p.injury_description || '';
+  document.getElementById('pt-f-stage').value = p.recovery_stage || '未知';
+  document.getElementById('pt-f-notes').value = p.notes || '';
+  openModal('modal-patient');
+}
+
+async function savePatient() {
+  const id = document.getElementById('pt-edit-id').value;
+  const data = {
+    name: document.getElementById('pt-f-name').value.trim(),
+    role: document.getElementById('pt-f-role').value,
+    gender: document.getElementById('pt-f-gender').value,
+    age: document.getElementById('pt-f-age').value ? parseInt(document.getElementById('pt-f-age').value) : null,
+    unit: document.getElementById('pt-f-unit').value.trim(),
+    phone: document.getElementById('pt-f-phone').value.trim(),
+    pain_level: document.getElementById('pt-f-pain').value ? parseInt(document.getElementById('pt-f-pain').value) : null,
+    injury_description: document.getElementById('pt-f-injury').value.trim(),
+    recovery_stage: document.getElementById('pt-f-stage').value,
+    notes: document.getElementById('pt-f-notes').value.trim(),
+  };
+  if (!data.name) { showToast('姓名不能为空', 'error'); return; }
+  if (id) {
+    await api(`/admin/api/patients/${id}`, 'PUT', data);
+    showToast('更新成功');
+  } else {
+    await api('/admin/api/patients', 'POST', data);
+    showToast('创建成功');
+  }
+  closeModal('modal-patient');
+  loadPatients(ptPage);
+}
+
+async function deletePatient(id) {
+  if (!confirm('确定要删除该患者吗？关联方案和反馈数据也将删除。')) return;
+  await api(`/admin/api/patients/${id}`, 'DELETE');
+  showToast('已删除');
+  loadPatients(ptPage);
+}
+
+async function openPatientDetail(id) {
+  currentPatientId = id;
+  const p = await api(`/admin/api/patients/${id}`);
+  document.getElementById('detail-name').textContent = p.name + ' — 患者详情';
+
+  let html = `
+    <div class="grid grid-cols-2 gap-2 mb-4 text-sm">
+      <div class="detail-row"><span class="detail-label">角色</span><span class="detail-value">${esc(p.role||'—')}</span></div>
+      <div class="detail-row"><span class="detail-label">性别/年龄</span><span class="detail-value">${esc(p.gender||'—')} / ${p.age||'—'}</span></div>
+      <div class="detail-row"><span class="detail-label">单位</span><span class="detail-value">${esc(p.unit||'—')}</span></div>
+      <div class="detail-row"><span class="detail-label">电话</span><span class="detail-value">${esc(p.phone||'—')}</span></div>
+      <div class="detail-row"><span class="detail-label">伤情</span><span class="detail-value">${esc(p.injury_description||'—')}</span></div>
+      <div class="detail-row"><span class="detail-label">阶段/疼痛</span><span class="detail-value">${esc(p.recovery_stage||'—')} / ${p.pain_level||'—'}</span></div>
+      <div class="detail-row col-span-2"><span class="detail-label">备注</span><span class="detail-value">${esc(p.notes||'—')}</span></div>
+    </div>`;
+
+  if (p.ai_profile) {
+    html += `<div class="bg-blue-50 rounded p-3 mb-4 text-xs text-gray-700"><b class="text-blue-700">AI 画像：</b>${esc(p.ai_profile)}</div>`;
+  }
+
+  if (p.rehab_plans?.length) {
+    html += '<p class="text-sm font-semibold text-gray-700 mb-2">近期康复方案</p>';
+    p.rehab_plans.forEach(pl => {
+      const plan = JSON.parse(pl.plan_json || '{}');
+      html += `<div class="border border-gray-100 rounded p-3 mb-2 text-xs">
+        <p class="font-medium">${esc(pl.injury_type||'—')} · ${esc(pl.stage||'—')} · ${esc(pl.severity||'—')}</p>
+        <p class="text-gray-500">${esc((pl.created_at||'').slice(0,16))}</p>
+      </div>`;
+    });
+  }
+
+  if (p.feedback_logs?.length) {
+    html += '<p class="text-sm font-semibold text-gray-700 mt-3 mb-2">近期反馈</p>';
+    p.feedback_logs.forEach(f => {
+      html += `<div class="border border-gray-100 rounded p-3 mb-2 text-xs">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="badge ${riskBadge(f.risk_level)}">${esc(f.risk_level||'—')}</span>
+          <span class="text-gray-500">${esc(f.feedback_type||'—')}</span>
+        </div>
+        <p>${esc(f.content||'—')}</p>
+        <p class="text-gray-400 mt-1">${esc((f.created_at||'').slice(0,16))}</p>
+      </div>`;
+    });
+  }
+
+  document.getElementById('detail-content').innerHTML = html;
+  // 恢复 AI Key
+  const savedKey = localStorage.getItem('admin_api_key') || '';
+  document.getElementById('profile-api-key').value = savedKey;
+  document.getElementById('profile-output-text').value = p.ai_profile || '';
+  openModal('modal-patient-detail');
+}
+
+async function generateProfile() {
+  const apiKey = document.getElementById('profile-api-key').value.trim();
+  const provider = document.getElementById('profile-provider').value;
+  const text = document.getElementById('profile-input-text').value.trim();
+  if (!apiKey) { showToast('请输入 API Key', 'error'); return; }
+  localStorage.setItem('admin_api_key', apiKey);
+  document.getElementById('profile-output-text').value = '生成中...';
+  try {
+    const res = await api(`/admin/api/patients/${currentPatientId}/generate-profile`, 'POST', {
+      text, api_key: apiKey, provider, model: provider === 'claude' ? 'claude-sonnet-4-6' : 'gpt-4o-mini'
+    });
+    document.getElementById('profile-output-text').value = res.profile || '';
+    showToast('画像生成成功');
+  } catch(e) {
+    document.getElementById('profile-output-text').value = '';
+    showToast('生成失败：' + e.message, 'error');
+  }
+}
+
+async function saveProfile() {
+  const profile = document.getElementById('profile-output-text').value.trim();
+  await api(`/admin/api/patients/${currentPatientId}`, 'PUT', { ai_profile: profile });
+  showToast('画像已保存');
+}
+
+// ═══ 动作库 ═══
+let actPage = 1;
+async function loadActions(page = 1) {
+  actPage = page;
+  const search = document.getElementById('act-search').value;
+  const stage = document.getElementById('act-stage-filter').value;
+  const data = await api(`/admin/api/actions?search=${enc(search)}&stage=${enc(stage)}&page=${page}`);
+  const tbody = document.getElementById('act-tbody');
+  tbody.innerHTML = '';
+  (data.items || []).forEach(a => {
+    tbody.innerHTML += `<tr>
+      <td class="font-medium">${esc(a.name)}</td>
+      <td><span class="badge ${stageBadge(a.stage)}">${esc(a.stage||'通用')}</span></td>
+      <td class="text-gray-500 text-xs max-w-xs truncate">${esc(a.injury_types||'—')}</td>
+      <td class="text-gray-500 text-xs">${esc(a.reps||'—')}</td>
+      <td class="text-xs">${(a.tags||'').split(',').filter(Boolean).map(t=>`<span class="badge bg-gray-100 text-gray-600 mr-1">${esc(t.trim())}</span>`).join('')}</td>
+      <td>
+        <div class="flex gap-1">
+          <button class="btn btn-secondary btn-sm" onclick="openEditActionModal(${a.id})">编辑</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteAction(${a.id})">删除</button>
+        </div>
+      </td>
+    </tr>`;
+  });
+  if (!data.items?.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-gray-400 py-8">暂无动作数据</td></tr>';
+  }
+  document.getElementById('act-count').textContent = `共 ${data.total} 条`;
+  renderPagination('act-pagination', data.page, data.pages, p => loadActions(p));
+}
+
+function openCreateActionModal() {
+  document.getElementById('modal-action-title').textContent = '新建动作';
+  document.getElementById('act-edit-id').value = '';
+  ['act-f-name','act-f-injury-types','act-f-reps','act-f-precautions','act-f-video','act-f-tags'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('act-f-desc').value = '';
+  document.getElementById('act-f-stage').value = '';
+  openModal('modal-action');
+}
+
+async function openEditActionModal(id) {
+  const a = await api(`/admin/api/actions/${id}`);
+  document.getElementById('modal-action-title').textContent = '编辑动作';
+  document.getElementById('act-edit-id').value = id;
+  document.getElementById('act-f-name').value = a.name || '';
+  document.getElementById('act-f-stage').value = a.stage || '';
+  document.getElementById('act-f-injury-types').value = a.injury_types || '';
+  document.getElementById('act-f-desc').value = a.description || '';
+  document.getElementById('act-f-reps').value = a.reps || '';
+  document.getElementById('act-f-precautions').value = a.precautions || '';
+  document.getElementById('act-f-video').value = a.video_url || '';
+  document.getElementById('act-f-tags').value = a.tags || '';
+  openModal('modal-action');
+}
+
+async function saveAction() {
+  const id = document.getElementById('act-edit-id').value;
+  const data = {
+    name: document.getElementById('act-f-name').value.trim(),
+    stage: document.getElementById('act-f-stage').value,
+    injury_types: document.getElementById('act-f-injury-types').value.trim(),
+    description: document.getElementById('act-f-desc').value.trim(),
+    reps: document.getElementById('act-f-reps').value.trim(),
+    precautions: document.getElementById('act-f-precautions').value.trim(),
+    video_url: document.getElementById('act-f-video').value.trim(),
+    tags: document.getElementById('act-f-tags').value.trim(),
+  };
+  if (!data.name) { showToast('动作名称不能为空', 'error'); return; }
+  if (id) {
+    await api(`/admin/api/actions/${id}`, 'PUT', data);
+    showToast('更新成功');
+  } else {
+    await api('/admin/api/actions', 'POST', data);
+    showToast('创建成功');
+  }
+  closeModal('modal-action');
+  loadActions(actPage);
+}
+
+async function deleteAction(id) {
+  if (!confirm('确定要删除该动作吗？')) return;
+  await api(`/admin/api/actions/${id}`, 'DELETE');
+  showToast('已删除');
+  loadActions(actPage);
+}
+
+// ═══ 用户管理 ═══
+let usersData = [];
+async function loadUsers() {
+  usersData = await api('/admin/api/users');
+  const tbody = document.getElementById('usr-tbody');
+  tbody.innerHTML = '';
+  (usersData || []).forEach(u => {
+    let perms = [];
+    try { perms = JSON.parse(u.permissions || '[]'); } catch {}
+    tbody.innerHTML += `<tr>
+      <td class="font-medium">${esc(u.username)}</td>
+      <td><span class="badge bg-blue-100 text-blue-700">${esc(u.role||'—')}</span></td>
+      <td class="text-xs text-gray-500">${perms.map(p=>`<span class="badge bg-gray-100 text-gray-600 mr-1">${esc(p)}</span>`).join('')||'无'}</td>
+      <td class="text-gray-400">${esc((u.created_at||'').slice(0,16))}</td>
+      <td>
+        <div class="flex gap-1">
+          <button class="btn btn-secondary btn-sm" onclick="openEditUserModal(${u.id})">编辑</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id})">删除</button>
+        </div>
+      </td>
+    </tr>`;
+  });
+  if (!usersData?.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-gray-400 py-8">暂无用户</td></tr>';
+  }
+}
+
+function openCreateUserModal() {
+  document.getElementById('modal-user-title').textContent = '新建用户';
+  document.getElementById('usr-edit-id').value = '';
+  document.getElementById('usr-f-name').value = '';
+  document.getElementById('usr-f-role').value = '学员';
+  document.querySelectorAll('#usr-perms input[type=checkbox]').forEach(cb => cb.checked = false);
+  openModal('modal-user');
+}
+
+function openEditUserModal(id) {
+  const u = usersData.find(u => u.id === id);
+  if (!u) return;
+  document.getElementById('modal-user-title').textContent = '编辑用户';
+  document.getElementById('usr-edit-id').value = id;
+  document.getElementById('usr-f-name').value = u.username;
+  document.getElementById('usr-f-role').value = u.role;
+  let perms = [];
+  try { perms = JSON.parse(u.permissions || '[]'); } catch {}
+  document.querySelectorAll('#usr-perms input[type=checkbox]').forEach(cb => {
+    cb.checked = perms.includes(cb.value);
+  });
+  openModal('modal-user');
+}
+
+async function saveUser() {
+  const id = document.getElementById('usr-edit-id').value;
+  const username = document.getElementById('usr-f-name').value.trim();
+  const role = document.getElementById('usr-f-role').value;
+  const permissions = [...document.querySelectorAll('#usr-perms input[type=checkbox]:checked')].map(cb => cb.value);
+  if (!username) { showToast('用户名不能为空', 'error'); return; }
+  if (id) {
+    await api(`/admin/api/users/${id}`, 'PUT', { role, permissions });
+    showToast('更新成功');
+  } else {
+    await api('/admin/api/users', 'POST', { username, role, permissions });
+    showToast('创建成功');
+  }
+  closeModal('modal-user');
+  loadUsers();
+}
+
+async function deleteUser(id) {
+  if (!confirm('确定要删除该用户吗？')) return;
+  await api(`/admin/api/users/${id}`, 'DELETE');
+  showToast('已删除');
+  loadUsers();
+}
+
+// ═══ 权限管理 ═══
+async function loadPermissionMatrix() {
+  const users = await api('/admin/api/users');
+  // 按角色聚合（取第一个找到该角色的用户的权限）
+  permMatrix = {};
+  ALL_ROLES.forEach(role => { permMatrix[role] = []; });
+  users.forEach(u => {
+    let perms = [];
+    try { perms = JSON.parse(u.permissions || '[]'); } catch {}
+    if (!permMatrix[u.role] || permMatrix[u.role].length === 0) {
+      permMatrix[u.role] = perms;
+    }
+  });
+
+  const table = document.getElementById('perm-table');
+  // 表头
+  let thead = '<tr><th>角色 \\ 权限</th>';
+  ALL_PERMS.forEach(p => { thead += `<th class="text-center">${p}</th>`; });
+  thead += '</tr>';
+  table.querySelector('thead').innerHTML = thead;
+
+  // 行
+  let tbody = '';
+  ALL_ROLES.forEach(role => {
+    tbody += `<tr><td class="font-medium">${role}</td>`;
+    ALL_PERMS.forEach(perm => {
+      const checked = (permMatrix[role] || []).includes(perm) ? 'checked' : '';
+      tbody += `<td class="text-center"><input type="checkbox" class="perm-check" ${checked} data-role="${role}" data-perm="${perm}"></td>`;
+    });
+    tbody += '</tr>';
+  });
+  table.querySelector('tbody').innerHTML = tbody;
+}
+
+async function savePermissions() {
+  // 读取矩阵当前状态
+  document.querySelectorAll('.perm-check').forEach(cb => {
+    const role = cb.dataset.role;
+    const perm = cb.dataset.perm;
+    if (!permMatrix[role]) permMatrix[role] = [];
+    if (cb.checked && !permMatrix[role].includes(perm)) permMatrix[role].push(perm);
+    if (!cb.checked) permMatrix[role] = permMatrix[role].filter(p => p !== perm);
+  });
+  // 同步所有用户
+  const users = await api('/admin/api/users');
+  for (const u of users) {
+    const newPerms = permMatrix[u.role] || [];
+    await api(`/admin/api/users/${u.id}`, 'PUT', { permissions: newPerms });
+  }
+  showToast('权限已保存');
+}
+
+// ═══ 日志监控 ═══
+let currentLogTab = 'tools';
+function switchLogTab(tab) {
+  currentLogTab = tab;
+  ['tools','feedback','system'].forEach(t => {
+    document.getElementById(`log-${t}-panel`).style.display = t === tab ? '' : 'none';
+    document.getElementById(`log-tab-${t}`).className = t === tab ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
+  });
+  if (tab === 'tools') loadToolCalls(1);
+  if (tab === 'feedback') loadFeedbackLogs(1);
+  if (tab === 'system') loadSystemStatus();
+}
+
+let tcPage = 1;
+async function loadToolCalls(page = 1) {
+  tcPage = page;
+  const data = await api(`/admin/api/tool-calls?page=${page}`);
+  const tbody = document.getElementById('tc-tbody');
+  tbody.innerHTML = '';
+  (data.items || []).forEach(tc => {
+    const inp = tc.input_json ? JSON.parse(tc.input_json) : {};
+    const res = tc.result_json ? JSON.parse(tc.result_json) : {};
+    const inpStr = JSON.stringify(inp).slice(0, 80);
+    const resStr = JSON.stringify(res).slice(0, 80);
+    tbody.innerHTML += `<tr>
+      <td class="text-gray-400 whitespace-nowrap">${esc((tc.created_at||'').slice(0,16))}</td>
+      <td class="font-mono text-xs text-gray-400">${esc((tc.session_id||'').slice(0,8))}…</td>
+      <td>${esc(tc.patient_name||'—')}</td>
+      <td><span class="badge bg-blue-100 text-blue-700">${esc(tc.tool_name||'—')}</span></td>
+      <td><span class="log-expand" onclick="toggleExpand(this)" title="${esc(JSON.stringify(inp))}">${esc(inpStr)}${inp&&JSON.stringify(inp).length>80?'…':''}</span></td>
+      <td><span class="log-expand" onclick="toggleExpand(this)" title="${esc(JSON.stringify(res))}">${esc(resStr)}${res&&JSON.stringify(res).length>80?'…':''}</span></td>
+    </tr>`;
+  });
+  if (!data.items?.length) tbody.innerHTML = '<tr><td colspan="6" class="text-center text-gray-400 py-8">暂无工具调用记录</td></tr>';
+  document.getElementById('tc-count').textContent = `共 ${data.total} 条`;
+  renderPagination('tc-pagination', data.page, data.pages, p => loadToolCalls(p));
+}
+
+function toggleExpand(el) {
+  if (el.classList.contains('expanded')) {
+    el.classList.remove('expanded');
+    el.textContent = el.getAttribute('title').slice(0, 80) + (el.getAttribute('title').length > 80 ? '…' : '');
+  } else {
+    el.classList.add('expanded');
+    el.textContent = el.getAttribute('title');
+  }
+}
+
+let fbPage = 1;
+async function loadFeedbackLogs(page = 1) {
+  fbPage = page;
+  const risk = document.getElementById('fb-risk-filter').value;
+  const data = await api(`/admin/api/feedback?page=${page}&risk=${enc(risk)}`);
+  const tbody = document.getElementById('fb-tbody');
+  tbody.innerHTML = '';
+  (data.items || []).forEach(f => {
+    tbody.innerHTML += `<tr>
+      <td class="text-gray-400 whitespace-nowrap">${esc((f.created_at||'').slice(0,16))}</td>
+      <td>${esc(f.patient_name||'—')}</td>
+      <td class="text-xs">${esc(f.feedback_type||'—')}</td>
+      <td class="max-w-xs text-xs">${esc(f.content||'—')}</td>
+      <td><span class="badge ${riskBadge(f.risk_level)}">${esc(f.risk_level||'—')}</span></td>
+      <td class="text-xs text-gray-600 max-w-xs">${esc(f.action_required||'—')}</td>
+    </tr>`;
+  });
+  if (!data.items?.length) tbody.innerHTML = '<tr><td colspan="6" class="text-center text-gray-400 py-8">暂无反馈记录</td></tr>';
+  document.getElementById('fb-count').textContent = `共 ${data.total} 条`;
+  renderPagination('fb-pagination', data.page, data.pages, p => loadFeedbackLogs(p));
+}
+
+async function loadSystemStatus() {
+  const stats = await api('/admin/api/stats');
+  const sessionData = await api('/admin/api/sessions?page=1');
+  const tcData = await api('/admin/api/tool-calls?page=1');
+
+  document.getElementById('sys-db-path').textContent = window.location.origin + ' → rehab_demo.db';
+  document.getElementById('sys-patients').textContent = stats.total_patients ?? '—';
+  document.getElementById('sys-sessions').textContent = sessionData.total ?? '—';
+  document.getElementById('sys-tools').textContent = tcData.total ?? '—';
+  document.getElementById('sys-today').textContent = stats.today_sessions ?? '—';
+
+  // state
+  const stateResp = await fetch('/state');
+  const stateData = await stateResp.json();
+  document.getElementById('sys-state').textContent = JSON.stringify(stateData, null, 2);
+}
+
+// ═══ 工具函数 ═══
+async function api(url, method = 'GET', body = null) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const resp = await fetch(url, opts);
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || resp.statusText);
+  return data;
+}
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function showToast(msg, type = 'success') {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = `fixed bottom-6 left-1/2 -translate-x-1/2 text-white text-sm px-5 py-2 rounded-full shadow-lg z-[100] transition-opacity ${type === 'error' ? 'bg-red-600' : 'bg-green-600'}`;
+  toast.style.opacity = '1';
+  setTimeout(() => { toast.style.opacity = '0'; }, 2500);
+}
+
+function esc(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function enc(str) { return encodeURIComponent(str || ''); }
+
+function stageBadge(stage) {
+  const map = { '急性期': 'bg-red-100 text-red-700', '亚急性期': 'bg-orange-100 text-orange-700',
+    '恢复期': 'bg-yellow-100 text-yellow-700', '强化期': 'bg-green-100 text-green-700',
+    '通用': 'bg-gray-100 text-gray-700' };
+  return map[stage] || 'bg-gray-100 text-gray-700';
+}
+function riskBadge(level) {
+  const map = { '高风险': 'risk-high', '中风险': 'risk-mid', '低风险': 'risk-low' };
+  return map[level] || 'bg-gray-100 text-gray-600';
+}
+
+function renderPagination(containerId, page, pages, callback) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  if (pages <= 1) return;
+  const prev = document.createElement('button');
+  prev.className = 'page-btn';
+  prev.textContent = '‹';
+  prev.disabled = page <= 1;
+  prev.onclick = () => callback(page - 1);
+  el.appendChild(prev);
+  const start = Math.max(1, page - 2), end = Math.min(pages, page + 2);
+  for (let i = start; i <= end; i++) {
+    const btn = document.createElement('button');
+    btn.className = 'page-btn' + (i === page ? ' active' : '');
+    btn.textContent = i;
+    btn.onclick = () => callback(i);
+    el.appendChild(btn);
+  }
+  const next = document.createElement('button');
+  next.className = 'page-btn';
+  next.textContent = '›';
+  next.disabled = page >= pages;
+  next.onclick = () => callback(page + 1);
+  el.appendChild(next);
+}
+
+// ═══ 启动 ═══
+loadStats();
+</script>
+</body>
+</html>
