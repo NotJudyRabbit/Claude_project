@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>教师端 - 班级学员情况</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#1E40AF',
+            secondary: '#3B82F6',
+            success: '#10B981',
+            warning: '#F59E0B',
+            danger: '#EF4444',
+          },
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        },
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; }
+    .card-shadow { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); }
+    .nav-shadow { box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06); }
+    .stage-badge {
+      display: inline-block; padding: 2px 10px;
+      border-radius: 9999px; font-size: 0.7rem; font-weight: 600;
+    }
+    table { border-collapse: collapse; width: 100%; }
+    th { background: #f8fafc; font-size: 0.75rem; font-weight: 600; color: #64748b;
+         text-align: left; padding: 10px 14px; border-bottom: 1px solid #e2e8f0; }
+    td { font-size: 0.82rem; color: #374151; padding: 11px 14px;
+         border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    tr:hover td { background: #f8fafc; }
+    input, select {
+      border: 1px solid #e5e7eb; border-radius: 0.5rem;
+      padding: 0.4rem 0.75rem; font-size: 0.82rem; color: #374151; outline: none;
+    }
+    input:focus, select:focus { border-color: #1E40AF; }
+
+    /* 详情弹窗 */
+    #detail-modal { display: none; }
+    #detail-modal.open { display: flex; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- 顶栏 -->
+  <header class="h-14 bg-white border-b border-gray-200 nav-shadow flex items-center px-6 gap-3 sticky top-0 z-30">
+    <div class="flex items-center gap-2">
+      <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white text-sm font-bold">医</div>
+      <span class="text-gray-800 font-bold text-base">训练伤康复助手</span>
+    </div>
+    <span class="text-gray-300 mx-2">|</span>
+    <span class="text-gray-700 font-semibold text-sm">教师端 · 班级学员情况</span>
+    <div class="flex-1"></div>
+    <a href="/" class="text-sm text-gray-500 hover:text-primary border border-gray-200 px-3 py-1.5 rounded-lg transition-colors">
+      返回用户端
+    </a>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6">
+
+    <!-- 统计卡片 -->
+    <div id="stats-row" class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+      <div class="bg-white rounded-xl card-shadow p-5">
+        <p class="text-xs text-gray-500 mb-1">学员总数</p>
+        <p id="stat-total" class="text-3xl font-bold text-primary">—</p>
+      </div>
+      <div class="bg-white rounded-xl card-shadow p-5">
+        <p class="text-xs text-gray-500 mb-1">高风险学员</p>
+        <p id="stat-risk" class="text-3xl font-bold text-danger">—</p>
+      </div>
+      <div class="bg-white rounded-xl card-shadow p-5">
+        <p class="text-xs text-gray-500 mb-1">今日活跃会话</p>
+        <p id="stat-today" class="text-3xl font-bold text-success">—</p>
+      </div>
+      <div class="bg-white rounded-xl card-shadow p-5">
+        <p class="text-xs text-gray-500 mb-1">康复阶段分布</p>
+        <div id="stat-stages" class="flex flex-wrap gap-1 mt-1"></div>
+      </div>
+    </div>
+
+    <!-- 筛选栏 -->
+    <div class="bg-white rounded-xl card-shadow p-4 mb-4 flex flex-wrap items-center gap-3">
+      <input id="search-input" type="text" placeholder="搜索姓名/伤情/单位..."
+        class="flex-1 min-w-36" oninput="debounceLoad()">
+      <select id="stage-filter" onchange="loadStudents(1)">
+        <option value="">全部阶段</option>
+        <option value="急性期">急性期</option>
+        <option value="亚急性期">亚急性期</option>
+        <option value="恢复期">恢复期</option>
+        <option value="强化期">强化期</option>
+        <option value="未知">未知</option>
+      </select>
+      <select id="risk-filter" onchange="loadStudents(1)">
+        <option value="">全部风险</option>
+        <option value="高风险">高风险</option>
+        <option value="中风险">中风险</option>
+        <option value="低风险">低风险</option>
+      </select>
+      <button onclick="loadStudents(1)"
+        class="bg-primary text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-800 transition-colors">
+        刷新
+      </button>
+    </div>
+
+    <!-- 学员表格 -->
+    <div class="bg-white rounded-xl card-shadow overflow-hidden">
+      <table>
+        <thead>
+          <tr>
+            <th>姓名</th>
+            <th>性别/年龄</th>
+            <th>身高/体重</th>
+            <th>康复阶段</th>
+            <th>疼痛</th>
+            <th>伤情概要</th>
+            <th>单位/班级</th>
+            <th>最近风险</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="student-tbody">
+          <tr><td colspan="9" class="text-center text-gray-400 py-8">加载中...</td></tr>
+        </tbody>
+      </table>
+
+      <!-- 分页 -->
+      <div class="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+        <span id="page-info" class="text-xs text-gray-400">共 0 条</span>
+        <div class="flex items-center gap-2">
+          <button id="btn-prev" onclick="changePage(-1)"
+            class="px-3 py-1 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            上一页
+          </button>
+          <span id="page-num" class="text-xs text-gray-500">第 1 页</span>
+          <button id="btn-next" onclick="changePage(1)"
+            class="px-3 py-1 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            下一页
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- 学员详情弹窗 -->
+  <div id="detail-modal"
+    class="fixed inset-0 bg-black bg-opacity-40 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <h3 class="font-bold text-gray-800">学员详情</h3>
+        <button onclick="closeDetail()" class="text-gray-400 hover:text-gray-600 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div id="detail-body" class="p-5 space-y-4 text-sm"></div>
+    </div>
+  </div>
+
+  <script>
+    let currentPage = 1;
+    let totalPages = 1;
+    let debounceTimer = null;
+
+    const stageColors = {
+      '急性期':   'bg-red-100 text-red-700',
+      '亚急性期': 'bg-orange-100 text-orange-700',
+      '恢复期':   'bg-yellow-100 text-yellow-700',
+      '强化期':   'bg-green-100 text-green-700',
+      '未知':     'bg-gray-100 text-gray-500',
+    };
+
+    const riskColors = {
+      '高风险': 'bg-red-100 text-red-700',
+      '中风险': 'bg-yellow-100 text-yellow-700',
+      '低风险': 'bg-green-100 text-green-700',
+    };
+
+    // ─── 加载统计 ─────────────────────────────────────────────────────────────
+    async function loadStats() {
+      try {
+        const data = await api('/admin/api/stats');
+        document.getElementById('stat-total').textContent = data.total_patients ?? 0;
+        document.getElementById('stat-risk').textContent  = data.high_risk_count ?? 0;
+        document.getElementById('stat-today').textContent = data.today_sessions ?? 0;
+
+        const stageDist = data.stage_distribution || {};
+        const stagesEl = document.getElementById('stat-stages');
+        stagesEl.innerHTML = Object.entries(stageDist).map(([s, c]) =>
+          `<span class="stage-badge ${stageColors[s] || 'bg-gray-100 text-gray-500'}">${s} ${c}</span>`
+        ).join('');
+      } catch (e) { console.error('加载统计失败', e); }
+    }
+
+    // ─── 加载学员列表 ─────────────────────────────────────────────────────────
+    async function loadStudents(page = 1) {
+      currentPage = page;
+      const search = document.getElementById('search-input').value.trim();
+      const stage  = document.getElementById('stage-filter').value;
+      const tbody  = document.getElementById('student-tbody');
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center text-gray-400 py-8">加载中...</td></tr>';
+
+      const params = new URLSearchParams({ page, search, stage });
+      try {
+        const data = await api('/admin/api/patients?' + params);
+        totalPages = data.pages || 1;
+
+        document.getElementById('page-info').textContent = `共 ${data.total} 条`;
+        document.getElementById('page-num').textContent = `第 ${currentPage} / ${totalPages} 页`;
+        document.getElementById('btn-prev').disabled = currentPage <= 1;
+        document.getElementById('btn-next').disabled = currentPage >= totalPages;
+
+        if (!data.items || data.items.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="9" class="text-center text-gray-400 py-8">暂无学员数据</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = data.items.map(p => {
+          const stageCls = stageColors[p.recovery_stage] || 'bg-gray-100 text-gray-500';
+          const painColor = !p.pain_level ? '' : p.pain_level <= 3 ? 'text-success' : p.pain_level <= 6 ? 'text-warning' : 'text-danger font-bold';
+          return `
+            <tr>
+              <td class="font-medium text-gray-800">${esc(p.name)}</td>
+              <td class="text-gray-500">${esc(p.gender || '—')} / ${p.age ? p.age + '岁' : '—'}</td>
+              <td class="text-gray-500">${p.height ? p.height + 'cm' : '—'} / ${p.weight ? p.weight + 'kg' : '—'}</td>
+              <td><span class="stage-badge ${stageCls}">${esc(p.recovery_stage || '未知')}</span></td>
+              <td class="${painColor}">${p.pain_level ? p.pain_level + '/10' : '—'}</td>
+              <td class="max-w-xs truncate text-gray-500">${esc(p.injury_description || '—')}</td>
+              <td class="text-gray-500">${esc(p.unit || '—')}</td>
+              <td id="risk-${p.id}"><span class="text-gray-300 text-xs">加载中</span></td>
+              <td>
+                <button onclick="showDetail(${p.id})"
+                  class="text-xs text-primary hover:underline font-medium">详情</button>
+              </td>
+            </tr>`;
+        }).join('');
+
+        // 异步加载每个学员的最近风险
+        data.items.forEach(p => loadPatientRisk(p.id));
+
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-danger py-8">加载失败：' + esc(e.message) + '</td></tr>';
+      }
+    }
+
+    async function loadPatientRisk(patientId) {
+      try {
+        const data = await api(`/admin/api/feedback?page=1`);
+        const feedbacks = (data.items || []).filter(f => f.patient_id === patientId);
+        const el = document.getElementById('risk-' + patientId);
+        if (!el) return;
+        if (feedbacks.length === 0) {
+          el.innerHTML = '<span class="text-gray-300 text-xs">无记录</span>';
+          return;
+        }
+        const latest = feedbacks[0];
+        const cls = riskColors[latest.risk_level] || 'bg-gray-100 text-gray-500';
+        el.innerHTML = `<span class="stage-badge ${cls}">${esc(latest.risk_level || '—')}</span>`;
+      } catch (e) {
+        const el = document.getElementById('risk-' + patientId);
+        if (el) el.innerHTML = '<span class="text-gray-300 text-xs">—</span>';
+      }
+    }
+
+    function changePage(delta) {
+      const newPage = currentPage + delta;
+      if (newPage < 1 || newPage > totalPages) return;
+      loadStudents(newPage);
+    }
+
+    function debounceLoad() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => loadStudents(1), 300);
+    }
+
+    // ─── 学员详情 ─────────────────────────────────────────────────────────────
+    async function showDetail(patientId) {
+      document.getElementById('detail-modal').classList.add('open');
+      document.getElementById('detail-body').innerHTML = '<p class="text-gray-400 text-center py-4">加载中...</p>';
+      try {
+        const p = await api('/admin/api/patients/' + patientId);
+        const stageCls = stageColors[p.recovery_stage] || 'bg-gray-100 text-gray-500';
+
+        const latestFeedback = (p.feedback_logs || [])[0];
+        const latestPlan = (p.rehab_plans || [])[0];
+        let planHtml = '<p class="text-gray-400 text-xs">暂无方案</p>';
+        if (latestPlan) {
+          try {
+            const plan = JSON.parse(latestPlan.plan_json || '{}');
+            planHtml = `
+              <div class="bg-blue-50 rounded-lg p-3 text-xs">
+                <div class="flex gap-2 mb-2">
+                  <span class="stage-badge ${stageCls}">${esc(plan.stage || '')}</span>
+                  <span class="stage-badge bg-yellow-100 text-yellow-700">${esc(plan.severity || '')}</span>
+                </div>
+                <p class="text-gray-700"><strong>目标：</strong>${esc(plan['目标'] || '—')}</p>
+                <p class="text-gray-700 mt-1"><strong>预期时间：</strong>${esc(plan['预期时间'] || '—')}</p>
+              </div>`;
+          } catch (e) { planHtml = '<p class="text-gray-400 text-xs">方案数据异常</p>'; }
+        }
+
+        document.getElementById('detail-body').innerHTML = `
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+              ${esc((p.name || '?').charAt(0))}
+            </div>
+            <div>
+              <p class="font-bold text-gray-800 text-base">${esc(p.name)}</p>
+              <span class="stage-badge ${stageCls} mt-1">${esc(p.recovery_stage || '未知')}</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-xs mb-4">
+            <div class="bg-gray-50 rounded-lg p-2"><span class="text-gray-400">性别</span> <span class="font-medium ml-1">${esc(p.gender || '—')}</span></div>
+            <div class="bg-gray-50 rounded-lg p-2"><span class="text-gray-400">年龄</span> <span class="font-medium ml-1">${p.age ? p.age + '岁' : '—'}</span></div>
+            <div class="bg-gray-50 rounded-lg p-2"><span class="text-gray-400">身高</span> <span class="font-medium ml-1">${p.height ? p.height + 'cm' : '—'}</span></div>
+            <div class="bg-gray-50 rounded-lg p-2"><span class="text-gray-400">体重</span> <span class="font-medium ml-1">${p.weight ? p.weight + 'kg' : '—'}</span></div>
+            <div class="bg-gray-50 rounded-lg p-2 col-span-2"><span class="text-gray-400">单位</span> <span class="font-medium ml-1">${esc(p.unit || '—')}</span></div>
+          </div>
+
+          <div class="mb-4">
+            <p class="text-xs font-semibold text-gray-600 mb-1">伤情描述</p>
+            <p class="text-xs text-gray-700 bg-gray-50 rounded-lg p-2 leading-relaxed">${esc(p.injury_description || '暂无')}</p>
+          </div>
+
+          ${p.pain_level ? `
+          <div class="mb-4">
+            <p class="text-xs font-semibold text-gray-600 mb-1">疼痛评分</p>
+            <div class="flex items-center gap-2">
+              <div class="flex-1 bg-gray-200 rounded-full h-2">
+                <div class="h-2 rounded-full ${p.pain_level <= 3 ? 'bg-success' : p.pain_level <= 6 ? 'bg-warning' : 'bg-danger'}"
+                  style="width:${p.pain_level * 10}%"></div>
+              </div>
+              <span class="text-xs font-bold ${p.pain_level <= 3 ? 'text-success' : p.pain_level <= 6 ? 'text-warning' : 'text-danger'}">${p.pain_level}/10</span>
+            </div>
+          </div>` : ''}
+
+          <div class="mb-4">
+            <p class="text-xs font-semibold text-gray-600 mb-1">最新康复方案</p>
+            ${planHtml}
+          </div>
+
+          ${latestFeedback ? `
+          <div class="mb-2">
+            <p class="text-xs font-semibold text-gray-600 mb-1">最近训练反馈</p>
+            <div class="bg-gray-50 rounded-lg p-2 text-xs">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="stage-badge ${riskColors[latestFeedback.risk_level] || 'bg-gray-100 text-gray-500'}">${esc(latestFeedback.risk_level || '—')}</span>
+                <span class="text-gray-400">${esc(latestFeedback.feedback_type || '')}</span>
+              </div>
+              <p class="text-gray-700">${esc(latestFeedback.content || '—')}</p>
+              ${latestFeedback.action_required ? `<p class="text-primary mt-1">建议：${esc(latestFeedback.action_required)}</p>` : ''}
+            </div>
+          </div>` : ''}
+
+          ${p.ai_profile ? `
+          <div>
+            <p class="text-xs font-semibold text-gray-600 mb-1">AI 康复画像</p>
+            <p class="text-xs text-gray-700 bg-blue-50 rounded-lg p-2 leading-relaxed">${esc(p.ai_profile)}</p>
+          </div>` : ''}
+        `;
+      } catch (e) {
+        document.getElementById('detail-body').innerHTML = '<p class="text-danger text-center py-4">加载失败：' + esc(e.message) + '</p>';
+      }
+    }
+
+    function closeDetail() {
+      document.getElementById('detail-modal').classList.remove('open');
+    }
+
+    // ─── 工具函数 ─────────────────────────────────────────────────────────────
+    async function api(url) {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      return resp.json();
+    }
+
+    function esc(str) {
+      return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ─── 启动 ─────────────────────────────────────────────────────────────────
+    loadStats();
+    loadStudents(1);
+  </script>
+</body>
+</html>

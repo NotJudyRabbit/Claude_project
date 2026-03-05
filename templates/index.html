@@ -3,10 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>训练伤康复智能助手 Demo</title>
+  <title>训练伤康复智能助手</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#1E40AF',
+            secondary: '#3B82F6',
+            accent: '#60A5FA',
+            success: '#10B981',
+            warning: '#F59E0B',
+            danger: '#EF4444',
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        },
+      }
+    }
+  </script>
   <style>
-    body { font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    body { font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; }
     #chat-messages { scroll-behavior: smooth; }
     .message-bubble { max-width: 80%; word-break: break-word; }
     .typing-dot { animation: typing 1.2s infinite; }
@@ -24,63 +43,28 @@
       font-weight: 600;
     }
     .plan-action {
-      border-left: 3px solid #3b82f6;
+      border-left: 3px solid #1E40AF;
       padding-left: 0.75rem;
       margin-bottom: 0.5rem;
     }
-    select.dark-select {
-      background-color: #1f2937;
-      border: 1px solid #374151;
-      color: #d1d5db;
-      border-radius: 6px;
-      padding: 4px 8px;
-      font-size: 0.75rem;
-      outline: none;
-      cursor: pointer;
-    }
-    select.dark-select:focus { border-color: #6b7280; }
-    select.dark-select option { background-color: #1f2937; }
+    .card-shadow { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); }
+    .nav-shadow { box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06); }
 
     /* 右侧抽屉 */
-    #right-drawer {
-      transform: translateX(100%);
-      transition: transform 0.25s ease;
-    }
-    #right-drawer.open {
-      transform: translateX(0);
-    }
-    #drawer-overlay {
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.25s ease;
-    }
-    #drawer-overlay.open {
-      opacity: 1;
-      pointer-events: auto;
-    }
+    #right-drawer { transform: translateX(100%); transition: transform 0.25s ease; }
+    #right-drawer.open { transform: translateX(0); }
+    #drawer-overlay { opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
+    #drawer-overlay.open { opacity: 1; pointer-events: auto; }
 
-    /* 用户 Popover */
-    #user-popover {
-      display: none;
-    }
-    #user-popover.open {
-      display: block;
-    }
-
-    /* 工具列表高亮 */
-    .tool-list-item.active {
-      background-color: #1e3a5f;
-      border-color: #3b82f6;
-    }
-    .tool-list-item.active .tool-check {
-      display: inline;
-    }
+    /* Popover */
+    #user-popover { display: none; }
+    #user-popover.open { display: block; }
 
     /* 侧栏滚动 */
-    #session-list { max-height: 200px; overflow-y: auto; }
+    #session-list { max-height: 180px; overflow-y: auto; }
     #session-list::-webkit-scrollbar { width: 4px; }
     #session-list::-webkit-scrollbar-track { background: transparent; }
-    #session-list::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 2px; }
+    #session-list::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
 
     /* 主聊天区滚动条 */
     #chat-messages::-webkit-scrollbar { width: 6px; }
@@ -95,187 +79,175 @@
 </head>
 <body class="bg-gray-50 h-screen flex flex-col overflow-hidden">
 
-  <!-- ═══════════════════════════════════════════════════════════
-       顶栏 48px
-  ════════════════════════════════════════════════════════════════ -->
-  <header class="h-12 bg-gray-900 border-b border-gray-700 flex items-center px-4 gap-3 flex-shrink-0 z-30">
-    <!-- 左：汉堡 + Logo + 系统名 -->
+  <!-- ═══ 顶栏 ═══ -->
+  <header class="h-14 bg-white border-b border-gray-200 nav-shadow flex items-center px-4 gap-3 flex-shrink-0 z-30">
+    <!-- 左：Logo + 系统名 -->
     <div class="flex items-center gap-2 flex-shrink-0">
-      <button class="text-gray-400 hover:text-gray-200 p-1 rounded" title="菜单">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-        </svg>
-      </button>
-      <div class="w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">医</div>
-      <span class="text-white font-semibold text-sm whitespace-nowrap">训练伤康复助手</span>
+      <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white text-sm font-bold">医</div>
+      <span class="text-gray-800 font-bold text-base whitespace-nowrap">训练伤康复助手</span>
     </div>
 
-    <!-- 中：模型选择 -->
-    <div class="flex-1 flex items-center justify-center gap-2">
-      <select id="provider-select" class="dark-select" onchange="onProviderChange()"></select>
-      <select id="model-select" class="dark-select" onchange="onModelChange()"></select>
-      <span id="active-badge" class="bg-green-700 text-green-100 text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap">—</span>
-    </div>
+    <div class="flex-1"></div>
 
     <!-- 右：操作按钮 -->
     <div class="flex items-center gap-2 flex-shrink-0">
       <!-- 新对话 -->
       <button onclick="resetSession()" title="新对话"
-        class="flex items-center gap-1 text-gray-300 hover:text-white hover:bg-gray-700 px-3 py-1.5 rounded-lg text-xs transition-colors">
+        class="flex items-center gap-1 text-gray-600 hover:text-primary hover:bg-blue-50 px-3 py-1.5 rounded-lg text-sm transition-colors border border-gray-200 hover:border-blue-200">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
         </svg>
         新对话
       </button>
 
-      <!-- 工具日志图标 -->
+      <!-- 工具日志 -->
       <button id="btn-drawer-tools" onclick="openDrawer('tools')" title="工具调用日志"
-        class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors text-base">
+        class="w-9 h-9 flex items-center justify-center text-gray-500 hover:text-primary hover:bg-blue-50 rounded-lg transition-colors border border-gray-200 text-base">
         🔧
       </button>
 
-      <!-- 康复方案图标 -->
+      <!-- 康复方案 -->
       <button id="btn-drawer-plan" onclick="openDrawer('plan')" title="个性化康复方案"
-        class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors text-base">
+        class="w-9 h-9 flex items-center justify-center text-gray-500 hover:text-primary hover:bg-blue-50 rounded-lg transition-colors border border-gray-200 text-base">
         📋
       </button>
 
-      <!-- 用户头像（点击开 API Key popover） -->
+      <!-- 用户头像 / API Key Popover -->
       <div class="relative">
         <button onclick="toggleUserPopover()" id="user-avatar-btn"
-          class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold hover:bg-blue-500 transition-colors">
+          class="w-9 h-9 bg-primary rounded-full flex items-center justify-center text-white text-sm font-bold hover:bg-blue-800 transition-colors">
           U
         </button>
-        <!-- API Key Popover -->
         <div id="user-popover"
-          class="absolute right-0 top-10 w-72 bg-white border border-gray-200 rounded-xl shadow-2xl p-4 z-50">
-          <h3 class="text-sm font-bold text-gray-800 mb-3">🔑 API Key 设置</h3>
+          class="absolute right-0 top-11 w-80 bg-white border border-gray-200 rounded-xl shadow-2xl p-4 z-50">
+          <h3 class="text-sm font-bold text-gray-800 mb-3">⚙️ 模型配置</h3>
           <div class="space-y-3">
             <div>
-              <label class="text-xs text-gray-500 block mb-1">当前提供商</label>
-              <div id="popover-provider-name" class="text-sm font-medium text-gray-700">—</div>
+              <label class="text-xs text-gray-500 block mb-1">提供商</label>
+              <select id="provider-select"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary transition-colors"
+                onchange="onProviderChange()"></select>
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 block mb-1">模型</label>
+              <select id="model-select"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary transition-colors"
+                onchange="onModelChange()"></select>
             </div>
             <div>
               <label id="popover-key-label" class="text-xs text-gray-500 block mb-1">API Key</label>
               <input id="api-key-input" type="password" placeholder="sk-ant-..."
-                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200 transition-all">
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-blue-200 transition-all">
             </div>
             <div class="flex items-center gap-2">
               <button onclick="saveApiKey()"
-                class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-sm py-2 rounded-lg transition-colors font-medium">
+                class="flex-1 bg-primary hover:bg-blue-800 text-white text-sm py-2 rounded-lg transition-colors font-medium">
                 保存
               </button>
-              <span id="key-status" class="text-xs text-green-600 hidden">✓ 已保存</span>
+              <span id="key-status" class="text-xs text-success hidden">✓ 已保存</span>
             </div>
           </div>
         </div>
       </div>
-
-      <!-- 进入管理端 -->
-      <a href="/admin" target="_blank"
-        class="text-gray-400 hover:text-gray-200 text-xs px-2 py-1 rounded border border-gray-700 hover:border-gray-500 transition-colors whitespace-nowrap">
-        管理端
-      </a>
     </div>
   </header>
 
-  <!-- ═══════════════════════════════════════════════════════════
-       主体：左侧栏 + 聊天区
-  ════════════════════════════════════════════════════════════════ -->
+  <!-- ═══ 主体：左侧栏 + 聊天区 ═══ -->
   <div class="flex flex-1 min-h-0 overflow-hidden">
 
-    <!-- ────────────────────────────────────────────────────────
-         左侧栏 260px（深色）
-    ───────────────────────────────────────────────────────────── -->
-    <aside class="w-64 flex-shrink-0 bg-gray-900 border-r border-gray-700 flex flex-col overflow-hidden">
+    <!-- ─── 左侧栏 260px（浅色） ─── -->
+    <aside class="w-64 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
 
       <!-- ▸ 我的档案 -->
-      <div class="p-4 border-b border-gray-700">
-        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">📋 我的档案</h2>
+      <div class="p-4 border-b border-gray-100">
+        <a href="/profile" class="flex items-center justify-between mb-3 group cursor-pointer">
+          <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider group-hover:text-primary transition-colors">
+            📋 我的档案
+          </h2>
+          <span class="text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity">查看详情 →</span>
+        </a>
 
         <!-- 空状态 -->
         <div id="patient-empty" class="text-center py-3">
           <div class="text-2xl mb-1">👤</div>
-          <p class="text-gray-500 text-xs leading-relaxed">与助手对话后<br>自动填充</p>
+          <p class="text-gray-400 text-xs leading-relaxed">与助手对话后<br>自动填充</p>
         </div>
 
         <!-- 有数据 -->
-        <div id="patient-info" class="hidden space-y-2">
-          <div class="flex items-center justify-between">
-            <span id="pt-name" class="text-white text-sm font-semibold">-</span>
-            <span id="pt-stage" class="stage-badge bg-blue-900 text-blue-300 text-xs">-</span>
-          </div>
-          <div id="pt-pain-row" class="hidden">
-            <div class="flex items-center gap-2 mt-1">
-              <div class="flex-1 bg-gray-700 rounded-full h-1.5">
-                <div id="pt-pain-bar" class="h-1.5 rounded-full bg-green-400 transition-all" style="width: 0%"></div>
+        <div id="patient-info" class="hidden">
+          <a href="/profile" class="block p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer">
+            <div class="flex items-center gap-2 mb-2">
+              <div class="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                <span id="pt-avatar">U</span>
               </div>
-              <span id="pt-pain-num" class="text-xs text-gray-400 whitespace-nowrap"></span>
+              <div class="flex-1 min-w-0">
+                <span id="pt-name" class="text-gray-800 text-sm font-semibold block truncate">-</span>
+                <span id="pt-stage" class="stage-badge bg-blue-200 text-blue-800">-</span>
+              </div>
             </div>
-          </div>
-          <p id="pt-injury" class="text-gray-400 text-xs leading-relaxed line-clamp-2">-</p>
-          <div id="pt-notes-row" class="hidden">
-            <p id="pt-notes" class="text-gray-500 text-xs"></p>
-          </div>
+            <!-- 基础信息网格 -->
+            <div class="grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-gray-600 mt-1">
+              <div id="pt-gender-row" class="hidden flex items-center gap-1">
+                <span class="text-gray-400">性别</span>
+                <span id="pt-gender" class="font-medium text-gray-700">-</span>
+              </div>
+              <div id="pt-age-row" class="hidden flex items-center gap-1">
+                <span class="text-gray-400">年龄</span>
+                <span id="pt-age" class="font-medium text-gray-700">-</span>
+              </div>
+              <div id="pt-weight-row" class="hidden flex items-center gap-1">
+                <span class="text-gray-400">体重</span>
+                <span id="pt-weight" class="font-medium text-gray-700">-</span>
+              </div>
+              <div id="pt-height-row" class="hidden flex items-center gap-1">
+                <span class="text-gray-400">身高</span>
+                <span id="pt-height" class="font-medium text-gray-700">-</span>
+              </div>
+            </div>
+            <!-- 疼痛进度条 -->
+            <div id="pt-pain-row" class="hidden mt-2">
+              <div class="flex items-center gap-2">
+                <div class="flex-1 bg-gray-200 rounded-full h-1.5">
+                  <div id="pt-pain-bar" class="h-1.5 rounded-full bg-success transition-all" style="width: 0%"></div>
+                </div>
+                <span id="pt-pain-num" class="text-xs text-gray-500 whitespace-nowrap"></span>
+              </div>
+            </div>
+          </a>
+          <p id="pt-injury" class="text-gray-500 text-xs leading-relaxed mt-2 px-1 line-clamp-2">-</p>
         </div>
 
-        <!-- 风险预警 Badge -->
-        <div id="risk-panel" class="hidden mt-2 bg-red-900 border border-red-700 rounded-lg p-2">
-          <p class="text-red-300 text-xs font-semibold">⚠️ 风险预警</p>
-          <p id="risk-content" class="text-red-400 text-xs mt-1"></p>
-        </div>
-      </div>
-
-      <!-- ▸ AI 工具列表 -->
-      <div class="p-4 border-b border-gray-700">
-        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">⚙️ AI 工具</h2>
-        <div class="space-y-1.5">
-          <div id="tool-save-patient"
-            class="tool-list-item flex items-center justify-between px-3 py-2 rounded-lg border border-transparent text-gray-400 text-xs">
-            <div class="flex items-center gap-2">
-              <span>👤</span>
-              <div>
-                <p class="font-medium">保存患者档案</p>
-                <p class="text-gray-600" style="font-size:0.65rem">记录基础信息</p>
-              </div>
-            </div>
-            <span class="tool-check hidden text-green-400 text-xs font-bold">✓</span>
-          </div>
-          <div id="tool-generate-plan"
-            class="tool-list-item flex items-center justify-between px-3 py-2 rounded-lg border border-transparent text-gray-400 text-xs">
-            <div class="flex items-center gap-2">
-              <span>📋</span>
-              <div>
-                <p class="font-medium">生成康复方案</p>
-                <p class="text-gray-600" style="font-size:0.65rem">个性化训练计划</p>
-              </div>
-            </div>
-            <span class="tool-check hidden text-green-400 text-xs font-bold">✓</span>
-          </div>
-          <div id="tool-log-feedback"
-            class="tool-list-item flex items-center justify-between px-3 py-2 rounded-lg border border-transparent text-gray-400 text-xs">
-            <div class="flex items-center gap-2">
-              <span>📊</span>
-              <div>
-                <p class="font-medium">记录训练反馈</p>
-                <p class="text-gray-600" style="font-size:0.65rem">跟踪训练进展</p>
-              </div>
-            </div>
-            <span class="tool-check hidden text-green-400 text-xs font-bold">✓</span>
-          </div>
+        <!-- 风险预警 -->
+        <div id="risk-panel" class="hidden mt-2 bg-red-50 border border-red-200 rounded-lg p-2">
+          <p class="text-red-600 text-xs font-semibold">⚠️ 风险预警</p>
+          <p id="risk-content" class="text-red-500 text-xs mt-1"></p>
         </div>
       </div>
 
-      <!-- ▸ 对话列表（可滚动，flex-1 撑满剩余空间） -->
+      <!-- ▸ 档案管理入口 -->
+      <div class="p-4 border-b border-gray-100">
+        <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">📁 档案管理</h2>
+        <a href="/profile"
+          class="flex items-center gap-3 px-3 py-2.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer group">
+          <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white text-sm flex-shrink-0">👤</div>
+          <div class="flex-1">
+            <p class="text-sm font-semibold text-gray-800 group-hover:text-primary transition-colors">档案录入</p>
+            <p class="text-xs text-gray-500">查看与更新个人信息</p>
+          </div>
+          <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+        </a>
+      </div>
+
+      <!-- ▸ 对话历史 -->
       <div class="flex-1 flex flex-col overflow-hidden p-4">
-        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 flex-shrink-0">💬 对话历史</h2>
+        <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex-shrink-0">💬 对话历史</h2>
         <div id="session-list" class="flex-1 space-y-1 overflow-y-auto">
-          <p class="text-gray-600 text-xs text-center py-3">加载中...</p>
+          <p class="text-gray-400 text-xs text-center py-3">加载中...</p>
         </div>
-
-        <!-- 重置当前会话按钮 -->
         <button onclick="resetSession()"
-          class="mt-3 w-full flex items-center justify-center gap-1.5 text-xs text-gray-500 hover:text-red-400 hover:bg-gray-800 py-2 rounded-lg border border-gray-700 hover:border-red-800 transition-colors flex-shrink-0">
+          class="mt-3 w-full flex items-center justify-center gap-1.5 text-xs text-gray-500 hover:text-danger hover:bg-red-50 py-2 rounded-lg border border-gray-200 hover:border-red-200 transition-colors flex-shrink-0">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
           </svg>
@@ -284,18 +256,15 @@
       </div>
     </aside>
 
-    <!-- ────────────────────────────────────────────────────────
-         主聊天区
-    ───────────────────────────────────────────────────────────── -->
+    <!-- ─── 主聊天区 ─── -->
     <main class="flex-1 flex flex-col min-w-0 bg-gray-50 overflow-hidden">
 
-      <!-- 消息区（可滚动） -->
+      <!-- 消息区 -->
       <div id="chat-messages" class="flex-1 overflow-y-auto py-6">
         <div class="max-w-3xl mx-auto px-6 space-y-4">
-          <!-- 欢迎消息 -->
           <div class="flex items-start gap-3">
-            <div class="w-8 h-8 bg-blue-900 rounded-full flex items-center justify-center text-white text-xs flex-shrink-0 mt-0.5">医</div>
-            <div class="message-bubble bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+            <div class="w-9 h-9 bg-primary rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 mt-0.5">医</div>
+            <div class="message-bubble bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 card-shadow">
               <p class="text-sm text-gray-800 leading-relaxed">
                 您好！我是训练伤康复智能助手。<br><br>
                 我可以帮您：<br>
@@ -310,41 +279,38 @@
         </div>
       </div>
 
-      <!-- 输入区（固定底部） -->
-      <div class="flex-shrink-0 px-6 py-4 bg-gray-50 border-t border-gray-200">
+      <!-- 输入区 -->
+      <div class="flex-shrink-0 px-6 py-4 bg-white border-t border-gray-200">
         <div class="max-w-2xl mx-auto">
-          <div class="bg-white border border-gray-200 rounded-2xl shadow-sm flex items-end gap-2 px-4 py-3 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-200 transition-all">
+          <div class="bg-white border border-gray-200 rounded-2xl card-shadow flex items-end gap-2 px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-blue-100 transition-all">
             <textarea id="user-input"
               placeholder="描述您的伤情或提问... (Enter 发送，Shift+Enter 换行)"
               rows="1"
               class="flex-1 text-sm text-gray-800 placeholder-gray-400 resize-none focus:outline-none bg-transparent leading-relaxed"
               onkeydown="handleKeyDown(event)"></textarea>
             <button id="send-btn" onclick="sendMessage()"
-              class="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-200 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors flex-shrink-0">
+              class="bg-primary hover:bg-blue-800 disabled:bg-gray-200 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors flex-shrink-0">
               发送
             </button>
           </div>
-          <p class="text-xs text-gray-400 mt-1.5 text-center">点击右上角 <span class="font-medium">U</span> 图标配置 API Key，选择模型后开始对话</p>
+          <p class="text-xs text-gray-400 mt-1.5 text-center">
+            点击右上角 <span class="font-medium text-primary">U</span> 图标配置 API Key 后开始对话
+          </p>
         </div>
       </div>
     </main>
 
-  </div><!-- end 主体 -->
+  </div>
 
-  <!-- ═══════════════════════════════════════════════════════════
-       右侧抽屉遮罩
-  ════════════════════════════════════════════════════════════════ -->
+  <!-- 遮罩 -->
   <div id="drawer-overlay"
-    class="fixed inset-0 bg-black bg-opacity-30 z-40"
+    class="fixed inset-0 bg-black bg-opacity-20 z-40"
     onclick="closeDrawer()"></div>
 
-  <!-- ═══════════════════════════════════════════════════════════
-       右侧抽屉面板 360px
-  ════════════════════════════════════════════════════════════════ -->
+  <!-- ═══ 右侧抽屉 360px ═══ -->
   <div id="right-drawer"
-    class="fixed top-0 right-0 h-full w-90 bg-white border-l border-gray-200 shadow-2xl z-50 flex flex-col"
+    class="fixed top-0 right-0 h-full bg-white border-l border-gray-200 shadow-2xl z-50 flex flex-col"
     style="width: 360px;">
-    <!-- 抽屉头部 -->
     <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
       <h2 id="drawer-title" class="text-base font-bold text-gray-800">康复方案</h2>
       <button onclick="closeDrawer()" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
@@ -353,53 +319,51 @@
         </svg>
       </button>
     </div>
-
-    <!-- 抽屉内容（可滚动） -->
     <div id="drawer-body" class="flex-1 overflow-y-auto p-5">
 
-      <!-- ▸ 康复方案内容 -->
+      <!-- 康复方案 -->
       <div id="drawer-plan">
         <div id="plan-empty" class="text-center py-12">
           <div class="text-4xl mb-3">🏃</div>
           <p class="text-gray-400 text-sm">完成伤情评估后<br>系统将自动生成<br>个性化康复方案</p>
         </div>
         <div id="plan-content" class="hidden space-y-4">
-          <div class="bg-gray-50 rounded-lg p-3">
+          <div class="bg-blue-50 rounded-lg p-3">
             <p class="text-xs text-gray-500 mb-1">伤情 / 阶段</p>
             <p id="plan-injury" class="text-sm font-semibold text-gray-800"></p>
             <div class="flex gap-2 mt-1">
-              <span id="plan-stage" class="stage-badge bg-green-100 text-green-700"></span>
+              <span id="plan-stage" class="stage-badge bg-blue-100 text-blue-700"></span>
               <span id="plan-severity" class="stage-badge bg-yellow-100 text-yellow-700"></span>
             </div>
           </div>
           <div>
-            <p class="text-xs font-bold text-blue-700 mb-1">📌 阶段目标</p>
+            <p class="text-xs font-bold text-primary mb-1">📌 阶段目标</p>
             <p id="plan-goal" class="text-xs text-gray-700 leading-relaxed"></p>
           </div>
           <div>
-            <p class="text-xs font-bold text-blue-700 mb-1">📐 训练原则</p>
+            <p class="text-xs font-bold text-primary mb-1">📐 训练原则</p>
             <p id="plan-principle" class="text-xs text-gray-700 leading-relaxed"></p>
           </div>
           <div>
-            <p class="text-xs font-bold text-blue-700 mb-2">🏋️ 训练动作</p>
+            <p class="text-xs font-bold text-primary mb-2">🏋️ 训练动作</p>
             <div id="plan-actions" class="space-y-2"></div>
           </div>
           <div>
-            <p class="text-xs font-bold text-red-600 mb-1">🚫 禁忌事项</p>
+            <p class="text-xs font-bold text-danger mb-1">🚫 禁忌事项</p>
             <div id="plan-contraindications" class="space-y-1"></div>
           </div>
           <div class="bg-blue-50 rounded-lg p-3">
             <p class="text-xs text-gray-500">预期康复时间</p>
-            <p id="plan-duration" class="text-sm font-semibold text-blue-800 mt-1"></p>
+            <p id="plan-duration" class="text-sm font-semibold text-primary mt-1"></p>
           </div>
           <div id="plan-special-row" class="hidden">
-            <p class="text-xs font-bold text-orange-600 mb-1">⚡ 特殊要求</p>
+            <p class="text-xs font-bold text-warning mb-1">⚡ 特殊要求</p>
             <p id="plan-special" class="text-xs text-gray-700"></p>
           </div>
         </div>
       </div>
 
-      <!-- ▸ 工具调用日志内容 -->
+      <!-- 工具调用日志 -->
       <div id="drawer-tools" class="hidden">
         <div id="tool-log" class="space-y-2 text-xs text-gray-500">
           <p class="text-center text-gray-300 py-8">暂无工具调用</p>
@@ -425,7 +389,6 @@
       try {
         const resp = await fetch('/models');
         providersData = await resp.json();
-
         const providerSelect = document.getElementById('provider-select');
         providerSelect.innerHTML = '';
         for (const [pid, pdata] of Object.entries(providersData)) {
@@ -434,11 +397,8 @@
           opt.textContent = pdata.name;
           providerSelect.appendChild(opt);
         }
-
         renderModelDropdown('claude');
-        updateActiveBadge();
         loadApiKeyLocal();
-        updatePopoverProviderName();
       } catch (e) {
         console.error('加载模型列表失败:', e);
       }
@@ -461,62 +421,30 @@
     async function onProviderChange() {
       const newProvider = document.getElementById('provider-select').value;
       if (newProvider === currentProvider) return;
-
-      if (messagesSent > 0) {
-        await autoResetSession('切换提供商，会话已自动重置');
-      }
-
+      if (messagesSent > 0) await autoResetSession('切换提供商，会话已自动重置');
       currentProvider = newProvider;
       apiKey = '';
       document.getElementById('api-key-input').value = '';
       document.getElementById('key-status').classList.add('hidden');
-
       renderModelDropdown(newProvider);
       currentModel = document.getElementById('model-select').value;
-      updateActiveBadge();
-      updatePopoverProviderName();
+      loadApiKeyLocal();
     }
 
     // ─── 模型切换 ──────────────────────────────────────────────────────────────
     async function onModelChange() {
       const newModel = document.getElementById('model-select').value;
       if (newModel === currentModel) return;
-
-      if (messagesSent > 0) {
-        await autoResetSession('切换模型，会话已自动重置');
-      }
-
+      if (messagesSent > 0) await autoResetSession('切换模型，会话已自动重置');
       currentModel = newModel;
-      updateActiveBadge();
     }
 
-    function updateActiveBadge() {
-      const models = (providersData[currentProvider] || {}).models || [];
-      const m = models.find(m => m.id === currentModel);
-      document.getElementById('active-badge').textContent = m ? m.name : currentModel;
-    }
-
-    function updatePopoverProviderName() {
-      const pdata = providersData[currentProvider] || {};
-      document.getElementById('popover-provider-name').textContent = pdata.name || currentProvider;
-      document.getElementById('popover-key-label').textContent = (pdata.key_hint || 'API Key');
-      const input = document.getElementById('api-key-input');
-      input.placeholder = pdata.key_placeholder || 'sk-...';
-    }
-
-    // ─── API Key Popover ───────────────────────────────────────────────────────
+    // ─── Popover ───────────────────────────────────────────────────────────────
     function toggleUserPopover() {
       userPopoverOpen = !userPopoverOpen;
-      const pop = document.getElementById('user-popover');
-      if (userPopoverOpen) {
-        pop.classList.add('open');
-        updatePopoverProviderName();
-      } else {
-        pop.classList.remove('open');
-      }
+      document.getElementById('user-popover').classList.toggle('open', userPopoverOpen);
     }
 
-    // 点击其他地方关闭 popover
     document.addEventListener('click', function(e) {
       if (userPopoverOpen) {
         const popover = document.getElementById('user-popover');
@@ -529,12 +457,8 @@
     });
 
     function saveApiKey() {
-      const input = document.getElementById('api-key-input');
-      const val = input.value.trim();
-      if (!val) {
-        showToast('请输入有效的 API Key', 'error');
-        return;
-      }
+      const val = document.getElementById('api-key-input').value.trim();
+      if (!val) { showToast('请输入有效的 API Key', 'error'); return; }
       apiKey = val;
       saveApiKeyLocal(currentProvider, val);
       const status = document.getElementById('key-status');
@@ -543,7 +467,6 @@
       showToast('API Key 已保存', 'success');
     }
 
-    // ─── localStorage API Key 持久化 ──────────────────────────────────────────
     function saveApiKeyLocal(provider, key) {
       try {
         const keys = JSON.parse(localStorage.getItem('rehab_api_keys') || '{}');
@@ -567,34 +490,22 @@
     function openDrawer(type) {
       currentDrawerType = type;
       drawerOpen = true;
-
-      const drawer = document.getElementById('right-drawer');
-      const overlay = document.getElementById('drawer-overlay');
-      const title = document.getElementById('drawer-title');
-      const planSection = document.getElementById('drawer-plan');
-      const toolsSection = document.getElementById('drawer-tools');
+      document.getElementById('right-drawer').classList.add('open');
+      document.getElementById('drawer-overlay').classList.add('open');
       const btnPlan = document.getElementById('btn-drawer-plan');
       const btnTools = document.getElementById('btn-drawer-tools');
-
-      drawer.classList.add('open');
-      overlay.classList.add('open');
-
       if (type === 'plan') {
-        title.textContent = '📋 个性化康复方案';
-        planSection.classList.remove('hidden');
-        toolsSection.classList.add('hidden');
-        btnPlan.classList.add('text-white', 'bg-gray-700');
-        btnPlan.classList.remove('text-gray-400');
-        btnTools.classList.remove('text-white', 'bg-gray-700');
-        btnTools.classList.add('text-gray-400');
+        document.getElementById('drawer-title').textContent = '📋 个性化康复方案';
+        document.getElementById('drawer-plan').classList.remove('hidden');
+        document.getElementById('drawer-tools').classList.add('hidden');
+        btnPlan.classList.add('text-primary', 'bg-blue-50', 'border-primary');
+        btnTools.classList.remove('text-primary', 'bg-blue-50', 'border-primary');
       } else {
-        title.textContent = '🔧 工具调用日志';
-        planSection.classList.add('hidden');
-        toolsSection.classList.remove('hidden');
-        btnTools.classList.add('text-white', 'bg-gray-700');
-        btnTools.classList.remove('text-gray-400');
-        btnPlan.classList.remove('text-white', 'bg-gray-700');
-        btnPlan.classList.add('text-gray-400');
+        document.getElementById('drawer-title').textContent = '🔧 工具调用日志';
+        document.getElementById('drawer-plan').classList.add('hidden');
+        document.getElementById('drawer-tools').classList.remove('hidden');
+        btnTools.classList.add('text-primary', 'bg-blue-50', 'border-primary');
+        btnPlan.classList.remove('text-primary', 'bg-blue-50', 'border-primary');
       }
     }
 
@@ -603,10 +514,8 @@
       currentDrawerType = null;
       document.getElementById('right-drawer').classList.remove('open');
       document.getElementById('drawer-overlay').classList.remove('open');
-      document.getElementById('btn-drawer-plan').classList.remove('text-white', 'bg-gray-700');
-      document.getElementById('btn-drawer-plan').classList.add('text-gray-400');
-      document.getElementById('btn-drawer-tools').classList.remove('text-white', 'bg-gray-700');
-      document.getElementById('btn-drawer-tools').classList.add('text-gray-400');
+      document.getElementById('btn-drawer-plan').classList.remove('text-primary', 'bg-blue-50', 'border-primary');
+      document.getElementById('btn-drawer-tools').classList.remove('text-primary', 'bg-blue-50', 'border-primary');
     }
 
     // ─── 对话列表 ─────────────────────────────────────────────────────────────
@@ -615,72 +524,44 @@
         const resp = await fetch('/admin/api/sessions?page=1');
         const data = await resp.json();
         const list = document.getElementById('session-list');
-        const sessions = (data.sessions || []).slice(0, 10);
-
+        const sessions = (data.items || []).slice(0, 10);
         if (sessions.length === 0) {
-          list.innerHTML = '<p class="text-gray-600 text-xs text-center py-3">暂无历史对话</p>';
+          list.innerHTML = '<p class="text-gray-400 text-xs text-center py-3">暂无历史对话</p>';
           return;
         }
-
         list.innerHTML = sessions.map(s => {
           const name = s.patient_name || '未知患者';
-          const time = s.start_time ? new Date(s.start_time).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : '';
+          const time = s.started_at ? new Date(s.started_at).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : '';
           return `
-            <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-800 cursor-default group">
-              <span class="text-gray-500 text-xs">💬</span>
+            <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-100 cursor-default">
+              <span class="text-gray-400 text-xs">💬</span>
               <div class="flex-1 min-w-0">
-                <p class="text-gray-300 text-xs font-medium truncate">${escapeHtml(name)}</p>
-                <p class="text-gray-600 text-xs">${escapeHtml(time)}</p>
+                <p class="text-gray-600 text-xs font-medium truncate">${escapeHtml(name)}</p>
+                <p class="text-gray-400 text-xs">${escapeHtml(time)}</p>
               </div>
-            </div>
-          `;
+            </div>`;
         }).join('');
       } catch (e) {
-        document.getElementById('session-list').innerHTML = '<p class="text-gray-600 text-xs text-center py-3">加载失败</p>';
+        document.getElementById('session-list').innerHTML = '<p class="text-gray-400 text-xs text-center py-3">加载失败</p>';
       }
-    }
-
-    // ─── 工具高亮 ─────────────────────────────────────────────────────────────
-    function highlightToolInSidebar(toolName) {
-      const map = {
-        'save_patient_info': 'tool-save-patient',
-        'generate_rehab_plan': 'tool-generate-plan',
-        'log_training_feedback': 'tool-log-feedback'
-      };
-      const id = map[toolName];
-      if (!id) return;
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.classList.add('active');
-      const check = el.querySelector('.tool-check');
-      if (check) check.classList.remove('hidden');
     }
 
     // ─── 键盘事件 ─────────────────────────────────────────────────────────────
     function handleKeyDown(e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
     }
 
     // ─── 发送消息 ─────────────────────────────────────────────────────────────
     async function sendMessage() {
       if (isLoading) return;
-
       const input = document.getElementById('user-input');
       const message = input.value.trim();
-
       if (!message) return;
-      if (!apiKey) {
-        showToast('请先点击右上角 U 图标配置 API Key', 'error');
-        return;
-      }
+      if (!apiKey) { showToast('请先点击右上角 U 图标配置 API Key', 'error'); return; }
 
       appendMessage('user', message);
       input.value = '';
       input.style.height = 'auto';
-
       const loadingId = appendLoading();
       setLoading(true);
 
@@ -688,80 +569,54 @@
         const resp = await fetch('/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message,
-            api_key: apiKey,
-            provider: currentProvider,
-            model: currentModel,
-          })
+          body: JSON.stringify({ message, api_key: apiKey, provider: currentProvider, model: currentModel })
         });
-
         const data = await resp.json();
         removeLoading(loadingId);
-
         if (!resp.ok) {
           appendMessage('error', data.error || '请求失败');
         } else {
           messagesSent++;
           appendMessage('assistant', data.response);
-
-          if (data.tool_calls && data.tool_calls.length > 0) {
-            updateToolLog(data.tool_calls);
-            data.tool_calls.forEach(call => highlightToolInSidebar(call.tool));
-          }
-          if (data.patient) {
-            updatePatientPanel(data.patient);
-          }
-          if (data.rehab_plan) {
-            updateRehabPlan(data.rehab_plan);
-          }
+          if (data.tool_calls && data.tool_calls.length > 0) updateToolLog(data.tool_calls);
+          if (data.patient) updatePatientPanel(data.patient);
+          if (data.rehab_plan) updateRehabPlan(data.rehab_plan);
         }
       } catch (err) {
         removeLoading(loadingId);
         appendMessage('error', '网络错误：' + err.message);
       }
-
       setLoading(false);
     }
 
     // ─── 消息气泡 ─────────────────────────────────────────────────────────────
     function appendMessage(role, text) {
       const container = document.getElementById('chat-messages');
-      // 找到内部的 max-w-3xl 容器
       let inner = container.querySelector('.max-w-3xl');
       if (!inner) {
         inner = document.createElement('div');
         inner.className = 'max-w-3xl mx-auto px-6 space-y-4';
         container.appendChild(inner);
       }
-
       const div = document.createElement('div');
-
       if (role === 'user') {
         div.className = 'flex items-start gap-3 justify-end';
         div.innerHTML = `
-          <div class="message-bubble bg-blue-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 shadow-sm">
+          <div class="message-bubble bg-primary text-white rounded-2xl rounded-tr-sm px-4 py-3 card-shadow">
             <p class="text-sm leading-relaxed whitespace-pre-wrap">${escapeHtml(text)}</p>
           </div>
-          <div class="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-gray-700 text-xs flex-shrink-0 mt-0.5">我</div>
-        `;
+          <div class="w-9 h-9 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 text-xs font-bold flex-shrink-0 mt-0.5">我</div>`;
       } else if (role === 'assistant') {
         div.className = 'flex items-start gap-3';
         div.innerHTML = `
-          <div class="w-8 h-8 bg-blue-900 rounded-full flex items-center justify-center text-white text-xs flex-shrink-0 mt-0.5">医</div>
-          <div class="message-bubble bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+          <div class="w-9 h-9 bg-primary rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 mt-0.5">医</div>
+          <div class="message-bubble bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 card-shadow">
             <p class="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">${escapeHtml(text)}</p>
-          </div>
-        `;
+          </div>`;
       } else if (role === 'error') {
         div.className = 'flex justify-center';
-        div.innerHTML = `
-          <div class="bg-red-50 border border-red-200 text-red-600 text-xs px-4 py-2 rounded-lg">
-            ❌ ${escapeHtml(text)}
-          </div>
-        `;
+        div.innerHTML = `<div class="bg-red-50 border border-red-200 text-danger text-xs px-4 py-2 rounded-lg">❌ ${escapeHtml(text)}</div>`;
       }
-
       inner.appendChild(div);
       container.scrollTop = container.scrollHeight;
       return div;
@@ -776,19 +631,17 @@
         inner.className = 'max-w-3xl mx-auto px-6 space-y-4';
         container.appendChild(inner);
       }
-
       const id = 'loading-' + Date.now();
       const div = document.createElement('div');
       div.id = id;
       div.className = 'flex items-start gap-3';
       div.innerHTML = `
-        <div class="w-8 h-8 bg-blue-900 rounded-full flex items-center justify-center text-white text-xs flex-shrink-0 mt-0.5">医</div>
-        <div class="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm flex items-center gap-1">
-          <span class="typing-dot w-2 h-2 bg-blue-400 rounded-full inline-block"></span>
-          <span class="typing-dot w-2 h-2 bg-blue-400 rounded-full inline-block"></span>
-          <span class="typing-dot w-2 h-2 bg-blue-400 rounded-full inline-block"></span>
-        </div>
-      `;
+        <div class="w-9 h-9 bg-primary rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 mt-0.5">医</div>
+        <div class="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 card-shadow flex items-center gap-1">
+          <span class="typing-dot w-2 h-2 bg-primary rounded-full inline-block"></span>
+          <span class="typing-dot w-2 h-2 bg-primary rounded-full inline-block"></span>
+          <span class="typing-dot w-2 h-2 bg-primary rounded-full inline-block"></span>
+        </div>`;
       inner.appendChild(div);
       container.scrollTop = container.scrollHeight;
       return id;
@@ -799,18 +652,15 @@
       if (el) el.remove();
     }
 
-    // ─── 工具调用日志（移入抽屉） ──────────────────────────────────────────────
+    // ─── 工具调用日志 ──────────────────────────────────────────────────────────
     function updateToolLog(toolCalls) {
       const log = document.getElementById('tool-log');
-      const hasItems = log.querySelector('.tool-item');
-      if (!hasItems) log.innerHTML = '';
-
+      if (!log.querySelector('.tool-item')) log.innerHTML = '';
       const toolMeta = {
-        'save_patient_info':    { icon: '👤', color: 'bg-blue-100 text-blue-700',   label: '保存档案' },
-        'generate_rehab_plan':  { icon: '📋', color: 'bg-green-100 text-green-700', label: '生成方案' },
-        'log_training_feedback':{ icon: '📊', color: 'bg-yellow-100 text-yellow-700',label: '记录反馈' }
+        'save_patient_info':     { icon: '👤', color: 'bg-blue-100 text-blue-700',    label: '档案更新' },
+        'generate_rehab_plan':   { icon: '📋', color: 'bg-green-100 text-green-700',  label: '生成方案' },
+        'log_training_feedback': { icon: '📊', color: 'bg-yellow-100 text-yellow-700', label: '记录反馈' }
       };
-
       toolCalls.forEach(call => {
         const meta = toolMeta[call.tool] || { icon: '🔧', color: 'bg-gray-100 text-gray-700', label: call.tool };
         const div = document.createElement('div');
@@ -820,13 +670,9 @@
             <span>${meta.icon}</span>
             <span class="text-xs ${meta.color} rounded px-1.5 py-0.5 font-medium">${meta.label}</span>
           </div>
-          <p class="text-gray-500 text-xs leading-relaxed">${escapeHtml(call.result.message || '完成')}</p>
-        `;
+          <p class="text-gray-500 text-xs leading-relaxed">${escapeHtml(call.result.message || '完成')}</p>`;
         log.insertBefore(div, log.firstChild);
-
-        if (call.result.risk_level === '高风险') {
-          showRiskAlert(call.result.action_required);
-        }
+        if (call.result.risk_level === '高风险') showRiskAlert(call.result.action_required);
       });
     }
 
@@ -834,42 +680,53 @@
     function updatePatientPanel(patient) {
       document.getElementById('patient-empty').classList.add('hidden');
       document.getElementById('patient-info').classList.remove('hidden');
-
-      document.getElementById('pt-name').textContent = patient.name || '-';
+      const name = patient.name || '-';
+      document.getElementById('pt-name').textContent = name;
+      document.getElementById('pt-avatar').textContent = name.charAt(0) || 'U';
       document.getElementById('pt-injury').textContent = patient.injury_description || '-';
 
       const stageEl = document.getElementById('pt-stage');
       stageEl.textContent = patient.recovery_stage || '-';
       const stageColors = {
-        '急性期':  'bg-red-900 text-red-300',
-        '亚急性期': 'bg-orange-900 text-orange-300',
-        '恢复期':  'bg-yellow-900 text-yellow-300',
-        '强化期':  'bg-green-900 text-green-300',
-        '未知':    'bg-gray-700 text-gray-300'
+        '急性期':   'bg-red-100 text-red-700',
+        '亚急性期': 'bg-orange-100 text-orange-700',
+        '恢复期':   'bg-yellow-100 text-yellow-700',
+        '强化期':   'bg-green-100 text-green-700',
+        '未知':     'bg-gray-100 text-gray-600'
       };
-      stageEl.className = 'stage-badge ' + (stageColors[patient.recovery_stage] || 'bg-gray-700 text-gray-300');
+      stageEl.className = 'stage-badge ' + (stageColors[patient.recovery_stage] || 'bg-gray-100 text-gray-600');
 
+      if (patient.gender) {
+        document.getElementById('pt-gender-row').classList.remove('hidden');
+        document.getElementById('pt-gender').textContent = patient.gender;
+      }
+      if (patient.age) {
+        document.getElementById('pt-age-row').classList.remove('hidden');
+        document.getElementById('pt-age').textContent = patient.age + ' 岁';
+      }
+      if (patient.weight) {
+        document.getElementById('pt-weight-row').classList.remove('hidden');
+        document.getElementById('pt-weight').textContent = patient.weight + ' kg';
+      }
+      if (patient.height) {
+        document.getElementById('pt-height-row').classList.remove('hidden');
+        document.getElementById('pt-height').textContent = patient.height + ' cm';
+      }
       if (patient.pain_level) {
         document.getElementById('pt-pain-row').classList.remove('hidden');
         const pct = (patient.pain_level / 10 * 100) + '%';
-        const painColor = patient.pain_level <= 3 ? 'bg-green-400' : patient.pain_level <= 6 ? 'bg-yellow-400' : 'bg-red-400';
+        const painColor = patient.pain_level <= 3 ? 'bg-success' : patient.pain_level <= 6 ? 'bg-warning' : 'bg-danger';
         const bar = document.getElementById('pt-pain-bar');
         bar.style.width = pct;
         bar.className = `h-1.5 rounded-full ${painColor} transition-all`;
         document.getElementById('pt-pain-num').textContent = `${patient.pain_level}/10`;
       }
-
-      if (patient.notes) {
-        document.getElementById('pt-notes-row').classList.remove('hidden');
-        document.getElementById('pt-notes').textContent = patient.notes;
-      }
     }
 
-    // ─── 康复方案（右抽屉） ────────────────────────────────────────────────────
+    // ─── 康复方案 ──────────────────────────────────────────────────────────────
     function updateRehabPlan(plan) {
       document.getElementById('plan-empty').classList.add('hidden');
       document.getElementById('plan-content').classList.remove('hidden');
-
       document.getElementById('plan-injury').textContent = plan.injury_type || '';
       document.getElementById('plan-stage').textContent = plan.stage || '';
       document.getElementById('plan-severity').textContent = plan.severity || '';
@@ -885,9 +742,8 @@
         div.innerHTML = `
           <p class="text-xs font-semibold text-gray-800">${escapeHtml(action['名称'] || '')}</p>
           <p class="text-xs text-gray-600 mt-0.5">${escapeHtml(action['说明'] || '')}</p>
-          <p class="text-xs text-blue-600 mt-0.5">次数：${escapeHtml(action['次数'] || '')}</p>
-          <p class="text-xs text-orange-600">注意：${escapeHtml(action['注意'] || '')}</p>
-        `;
+          <p class="text-xs text-primary mt-0.5">次数：${escapeHtml(action['次数'] || '')}</p>
+          <p class="text-xs text-warning">注意：${escapeHtml(action['注意'] || '')}</p>`;
         actionsEl.appendChild(div);
       });
 
@@ -895,7 +751,7 @@
       contrEl.innerHTML = '';
       (plan['禁忌'] || []).forEach(item => {
         const p = document.createElement('p');
-        p.className = 'text-xs text-red-600 flex items-center gap-1';
+        p.className = 'text-xs text-danger flex items-center gap-1';
         p.innerHTML = `<span>·</span> ${escapeHtml(item)}`;
         contrEl.appendChild(p);
       });
@@ -906,12 +762,10 @@
       }
     }
 
-    // ─── 风险预警（左侧栏 Badge） ──────────────────────────────────────────────
+    // ─── 风险预警 ─────────────────────────────────────────────────────────────
     function showRiskAlert(action) {
-      const panel = document.getElementById('risk-panel');
-      const content = document.getElementById('risk-content');
-      panel.classList.remove('hidden');
-      content.textContent = action || '发现高风险情况，请立即联系医疗人员！';
+      document.getElementById('risk-panel').classList.remove('hidden');
+      document.getElementById('risk-content').textContent = action || '发现高风险情况，请立即联系医疗人员！';
     }
 
     // ─── 重置会话 ─────────────────────────────────────────────────────────────
@@ -932,12 +786,11 @@
     }
 
     function resetChatUI() {
-      const container = document.getElementById('chat-messages');
-      container.innerHTML = `
+      document.getElementById('chat-messages').innerHTML = `
         <div class="max-w-3xl mx-auto px-6 space-y-4">
           <div class="flex items-start gap-3">
-            <div class="w-8 h-8 bg-blue-900 rounded-full flex items-center justify-center text-white text-xs flex-shrink-0 mt-0.5">医</div>
-            <div class="message-bubble bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+            <div class="w-9 h-9 bg-primary rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 mt-0.5">医</div>
+            <div class="message-bubble bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 card-shadow">
               <p class="text-sm text-gray-800 leading-relaxed">
                 您好！我是训练伤康复智能助手。<br><br>
                 我可以帮您：<br>
@@ -949,22 +802,10 @@
               </p>
             </div>
           </div>
-        </div>
-      `;
-
-      // 重置左侧档案
+        </div>`;
       document.getElementById('patient-empty').classList.remove('hidden');
       document.getElementById('patient-info').classList.add('hidden');
       document.getElementById('risk-panel').classList.add('hidden');
-
-      // 重置工具高亮
-      document.querySelectorAll('.tool-list-item').forEach(el => {
-        el.classList.remove('active');
-        const check = el.querySelector('.tool-check');
-        if (check) check.classList.add('hidden');
-      });
-
-      // 重置抽屉内容
       document.getElementById('plan-empty').classList.remove('hidden');
       document.getElementById('plan-content').classList.add('hidden');
       document.getElementById('tool-log').innerHTML = '<p class="text-center text-gray-300 py-8">暂无工具调用</p>';
@@ -973,23 +814,16 @@
     // ─── Toast ────────────────────────────────────────────────────────────────
     function showToast(msg, type = 'success') {
       const toast = document.createElement('div');
-      const colors = type === 'success' ? 'bg-green-600' : 'bg-red-600';
-      toast.className = `fixed bottom-6 left-1/2 -translate-x-1/2 ${colors} text-white text-sm px-5 py-2 rounded-full shadow-lg z-[100] transition-opacity`;
+      toast.className = `fixed bottom-6 left-1/2 -translate-x-1/2 ${type === 'success' ? 'bg-success' : 'bg-danger'} text-white text-sm px-5 py-2 rounded-full shadow-lg z-[100] transition-opacity`;
       toast.textContent = msg;
       document.body.appendChild(toast);
       setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 2000);
     }
 
-    // ─── HTML 转义 ────────────────────────────────────────────────────────────
     function escapeHtml(str) {
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
-    // ─── 加载状态 ─────────────────────────────────────────────────────────────
     function setLoading(loading) {
       isLoading = loading;
       const btn = document.getElementById('send-btn');
@@ -999,13 +833,11 @@
       btn.textContent = loading ? '处理中...' : '发送';
     }
 
-    // ─── textarea 自动高度 ────────────────────────────────────────────────────
     document.getElementById('user-input').addEventListener('input', function() {
       this.style.height = 'auto';
       this.style.height = Math.min(this.scrollHeight, 120) + 'px';
     });
 
-    // ─── 启动 ─────────────────────────────────────────────────────────────────
     loadModels();
     loadSessionList();
   </script>

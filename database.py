@@ -83,6 +83,8 @@ CREATE TABLE IF NOT EXISTS patients (
     role            TEXT DEFAULT '学员',
     gender          TEXT,
     age             INTEGER,
+    height          REAL,
+    weight          REAL,
     unit            TEXT,
     phone           TEXT,
     injury_description TEXT DEFAULT '',
@@ -172,6 +174,12 @@ def init_db():
     conn = get_db()
     try:
         conn.executescript(CREATE_TABLES_SQL)
+        # 迁移：为旧数据库添加 height/weight 列
+        for col in ["height REAL", "weight REAL"]:
+            try:
+                conn.execute(f"ALTER TABLE patients ADD COLUMN {col}")
+            except Exception:
+                pass
         # 写入种子动作数据（仅首次）
         count = conn.execute("SELECT COUNT(*) FROM actions").fetchone()[0]
         if count == 0:
@@ -348,15 +356,17 @@ def create_patient(data: dict) -> int:
     conn = get_db()
     try:
         cur = conn.execute(
-            """INSERT INTO patients (name, role, gender, age, unit, phone,
+            """INSERT INTO patients (name, role, gender, age, height, weight, unit, phone,
                injury_description, recovery_stage, pain_level, notes)
-               VALUES (:name, :role, :gender, :age, :unit, :phone,
+               VALUES (:name, :role, :gender, :age, :height, :weight, :unit, :phone,
                :injury_description, :recovery_stage, :pain_level, :notes)""",
             {
                 "name": data.get("name", ""),
                 "role": data.get("role", "学员"),
                 "gender": data.get("gender"),
                 "age": data.get("age"),
+                "height": data.get("height"),
+                "weight": data.get("weight"),
                 "unit": data.get("unit"),
                 "phone": data.get("phone"),
                 "injury_description": data.get("injury_description", ""),
@@ -372,7 +382,7 @@ def create_patient(data: dict) -> int:
 
 
 def update_patient(patient_id: int, data: dict):
-    fields = ["name", "role", "gender", "age", "unit", "phone",
+    fields = ["name", "role", "gender", "age", "height", "weight", "unit", "phone",
               "injury_description", "recovery_stage", "pain_level", "notes", "ai_profile"]
     updates = []
     params = []

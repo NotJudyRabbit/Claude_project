@@ -91,6 +91,60 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/profile")
+def profile():
+    return render_template("profile.html")
+
+
+@app.route("/teacher")
+def teacher():
+    return render_template("teacher.html")
+
+
+@app.route("/api/me", methods=["GET"])
+def get_me():
+    """获取当前会话患者的完整档案"""
+    patient_id = session_state.get("patient_id")
+    if patient_id:
+        patient = db.get_patient(patient_id)
+        if patient:
+            return jsonify(patient)
+    if session_state.get("patient"):
+        return jsonify(session_state["patient"])
+    return jsonify(None)
+
+
+@app.route("/api/me", methods=["POST"])
+def update_me():
+    """更新（或创建）当前会话患者档案"""
+    data = request.get_json() or {}
+    if not data.get("name"):
+        return jsonify({"error": "姓名不能为空"}), 400
+
+    patient_id = session_state.get("patient_id")
+    if patient_id:
+        db.update_patient(patient_id, data)
+    else:
+        patient_id = db.create_patient(data)
+        session_state["patient_id"] = patient_id
+        sid = session_state.get("session_id")
+        if sid:
+            db.update_session_patient(sid, patient_id, data.get("name", ""))
+
+    session_state["patient"] = {
+        "name": data.get("name", ""),
+        "gender": data.get("gender", ""),
+        "age": data.get("age"),
+        "height": data.get("height"),
+        "weight": data.get("weight"),
+        "injury_description": data.get("injury_description", ""),
+        "recovery_stage": data.get("recovery_stage", "未知"),
+        "pain_level": data.get("pain_level"),
+        "notes": data.get("notes", ""),
+    }
+    return jsonify({"success": True, "patient_id": patient_id, "message": "档案已更新"})
+
+
 @app.route("/models", methods=["GET"])
 def get_models():
     """返回所有支持的提供商和模型列表（过滤内部字段）"""

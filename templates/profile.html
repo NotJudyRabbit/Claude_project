@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>个人档案 - 训练伤康复助手</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#1E40AF',
+            secondary: '#3B82F6',
+            success: '#10B981',
+            warning: '#F59E0B',
+            danger: '#EF4444',
+          },
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        },
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; }
+    .card-shadow { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); }
+    .nav-shadow { box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06); }
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid #e5e7eb;
+      border-radius: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+      color: #1f2937;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus, select:focus, textarea:focus { border-color: #1E40AF; box-shadow: 0 0 0 2px rgba(30,64,175,0.1); }
+    label { display: block; font-size: 0.75rem; font-weight: 600; color: #6b7280; margin-bottom: 0.25rem; }
+    .form-group { margin-bottom: 1rem; }
+    .stage-badge {
+      display: inline-block; padding: 2px 8px;
+      border-radius: 9999px; font-size: 0.75rem; font-weight: 600;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- 顶栏 -->
+  <header class="h-14 bg-white border-b border-gray-200 nav-shadow flex items-center px-6 gap-3 sticky top-0 z-30">
+    <a href="/" class="flex items-center gap-2 text-gray-600 hover:text-primary transition-colors text-sm">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+      </svg>
+      返回
+    </a>
+    <div class="flex items-center gap-2 ml-2">
+      <div class="w-7 h-7 bg-primary rounded-lg flex items-center justify-center text-white text-xs font-bold">医</div>
+      <span class="text-gray-800 font-bold text-sm">训练伤康复助手</span>
+    </div>
+    <span class="text-gray-300 mx-2">|</span>
+    <span class="text-gray-700 font-semibold text-sm">个人档案</span>
+  </header>
+
+  <main class="max-w-3xl mx-auto px-4 py-8">
+
+    <!-- 页面标题 -->
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-gray-800">个人档案</h1>
+      <p class="text-gray-500 text-sm mt-1">完善您的基本信息，帮助助手为您制定更精准的康复方案</p>
+    </div>
+
+    <!-- 加载中 -->
+    <div id="loading-state" class="text-center py-12">
+      <div class="text-gray-400 text-sm">加载中...</div>
+    </div>
+
+    <!-- 档案表单 -->
+    <form id="profile-form" class="hidden space-y-6">
+
+      <!-- 基本信息 -->
+      <div class="bg-white rounded-xl card-shadow p-6">
+        <h2 class="text-base font-bold text-gray-800 mb-4 pb-2 border-b border-gray-100">
+          👤 基本信息
+        </h2>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="form-group col-span-2">
+            <label>姓名 <span class="text-danger">*</span></label>
+            <input type="text" id="f-name" placeholder="请输入姓名">
+          </div>
+          <div class="form-group">
+            <label>性别</label>
+            <select id="f-gender">
+              <option value="">不填</option>
+              <option value="男">男</option>
+              <option value="女">女</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>年龄</label>
+            <input type="number" id="f-age" min="1" max="100" placeholder="岁">
+          </div>
+          <div class="form-group">
+            <label>身高 (cm)</label>
+            <input type="number" id="f-height" min="100" max="250" step="0.1" placeholder="例：175">
+          </div>
+          <div class="form-group">
+            <label>体重 (kg)</label>
+            <input type="number" id="f-weight" min="30" max="200" step="0.1" placeholder="例：70">
+          </div>
+          <div class="form-group">
+            <label>所属单位 / 班级</label>
+            <input type="text" id="f-unit" placeholder="班级/部门">
+          </div>
+          <div class="form-group">
+            <label>联系电话</label>
+            <input type="tel" id="f-phone" placeholder="手机号">
+          </div>
+        </div>
+      </div>
+
+      <!-- 伤情信息 -->
+      <div class="bg-white rounded-xl card-shadow p-6">
+        <h2 class="text-base font-bold text-gray-800 mb-4 pb-2 border-b border-gray-100">
+          🩺 伤情信息
+        </h2>
+        <div class="space-y-4">
+          <div class="form-group">
+            <label>伤情描述</label>
+            <textarea id="f-injury" rows="3" placeholder="受伤部位、伤情类型、受伤时间..."></textarea>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="form-group">
+              <label>康复阶段</label>
+              <select id="f-stage">
+                <option value="未知">未知</option>
+                <option value="急性期">急性期（伤后0-72小时）</option>
+                <option value="亚急性期">亚急性期（伤后3-14天）</option>
+                <option value="恢复期">恢复期（伤后2-6周）</option>
+                <option value="强化期">强化期（伤后6周以上）</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>疼痛评分（1-10）</label>
+              <input type="number" id="f-pain" min="1" max="10" placeholder="1～10">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>备注（既往史、用药情况等）</label>
+            <textarea id="f-notes" rows="2" placeholder="其他需要说明的情况..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI 画像（只读） -->
+      <div id="ai-profile-section" class="hidden bg-white rounded-xl card-shadow p-6">
+        <h2 class="text-base font-bold text-gray-800 mb-4 pb-2 border-b border-gray-100">
+          🤖 AI 康复画像
+        </h2>
+        <div id="ai-profile-text" class="text-sm text-gray-700 leading-relaxed bg-blue-50 rounded-lg p-4"></div>
+      </div>
+
+      <!-- 操作按钮 -->
+      <div class="flex items-center gap-3">
+        <button type="submit"
+          class="flex-1 bg-primary hover:bg-blue-800 text-white py-3 rounded-xl font-semibold text-sm transition-colors">
+          保存档案
+        </button>
+        <a href="/"
+          class="px-6 py-3 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl text-sm font-medium transition-colors text-center">
+          取消
+        </a>
+      </div>
+
+      <!-- 提示 -->
+      <p id="save-msg" class="text-center text-sm hidden"></p>
+
+    </form>
+
+    <!-- 无档案提示 -->
+    <div id="empty-state" class="hidden bg-white rounded-xl card-shadow p-8 text-center">
+      <div class="text-4xl mb-3">📋</div>
+      <p class="text-gray-600 font-medium mb-1">尚未建立档案</p>
+      <p class="text-gray-400 text-sm mb-4">您可以通过下方表单直接录入，也可以先与助手对话由系统自动识别。</p>
+      <button onclick="showForm()"
+        class="bg-primary hover:bg-blue-800 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors">
+        立即录入
+      </button>
+    </div>
+
+  </main>
+
+  <script>
+    // ─── 加载档案 ─────────────────────────────────────────────────────────────
+    async function loadProfile() {
+      try {
+        const resp = await fetch('/api/me');
+        const data = await resp.json();
+        document.getElementById('loading-state').classList.add('hidden');
+        if (data) {
+          fillForm(data);
+          document.getElementById('profile-form').classList.remove('hidden');
+        } else {
+          document.getElementById('empty-state').classList.remove('hidden');
+        }
+      } catch (e) {
+        document.getElementById('loading-state').textContent = '加载失败，请刷新重试';
+      }
+    }
+
+    function fillForm(p) {
+      document.getElementById('f-name').value   = p.name || '';
+      document.getElementById('f-gender').value = p.gender || '';
+      document.getElementById('f-age').value    = p.age || '';
+      document.getElementById('f-height').value = p.height || '';
+      document.getElementById('f-weight').value = p.weight || '';
+      document.getElementById('f-unit').value   = p.unit || '';
+      document.getElementById('f-phone').value  = p.phone || '';
+      document.getElementById('f-injury').value = p.injury_description || '';
+      document.getElementById('f-stage').value  = p.recovery_stage || '未知';
+      document.getElementById('f-pain').value   = p.pain_level || '';
+      document.getElementById('f-notes').value  = p.notes || '';
+
+      if (p.ai_profile) {
+        document.getElementById('ai-profile-section').classList.remove('hidden');
+        document.getElementById('ai-profile-text').textContent = p.ai_profile;
+      }
+    }
+
+    function showForm() {
+      document.getElementById('empty-state').classList.add('hidden');
+      document.getElementById('profile-form').classList.remove('hidden');
+    }
+
+    // ─── 保存档案 ─────────────────────────────────────────────────────────────
+    document.getElementById('profile-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const name = document.getElementById('f-name').value.trim();
+      if (!name) {
+        showMsg('姓名不能为空', 'error');
+        return;
+      }
+
+      const payload = {
+        name,
+        gender:             document.getElementById('f-gender').value,
+        age:                toNum(document.getElementById('f-age').value),
+        height:             toNum(document.getElementById('f-height').value),
+        weight:             toNum(document.getElementById('f-weight').value),
+        unit:               document.getElementById('f-unit').value.trim(),
+        phone:              document.getElementById('f-phone').value.trim(),
+        injury_description: document.getElementById('f-injury').value.trim(),
+        recovery_stage:     document.getElementById('f-stage').value,
+        pain_level:         toNum(document.getElementById('f-pain').value),
+        notes:              document.getElementById('f-notes').value.trim(),
+        role:               '学员',
+      };
+
+      try {
+        const resp = await fetch('/api/me', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          showMsg(data.error || '保存失败', 'error');
+        } else {
+          showMsg('档案已保存', 'success');
+        }
+      } catch (err) {
+        showMsg('网络错误：' + err.message, 'error');
+      }
+    });
+
+    function toNum(val) {
+      const n = parseFloat(val);
+      return isNaN(n) ? null : n;
+    }
+
+    function showMsg(text, type) {
+      const el = document.getElementById('save-msg');
+      el.textContent = text;
+      el.className = `text-center text-sm ${type === 'success' ? 'text-success' : 'text-danger'}`;
+      el.classList.remove('hidden');
+      setTimeout(() => el.classList.add('hidden'), 3000);
+    }
+
+    loadProfile();
+  </script>
+</body>
+</html>
