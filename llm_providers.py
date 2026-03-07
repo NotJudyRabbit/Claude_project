@@ -77,13 +77,10 @@ def call_anthropic(model: str, api_key: str, messages: list, tools: list,
     all_tool_calls = []
 
     while True:
-        response = client.messages.create(
-            model=model,
-            max_tokens=2048,
-            system=system_prompt,
-            tools=tools,
-            messages=messages,
-        )
+        create_kwargs = dict(model=model, max_tokens=2048, system=system_prompt, messages=messages)
+        if tools:  # Anthropic API 不接受空的 tools 列表
+            create_kwargs["tools"] = tools
+        response = client.messages.create(**create_kwargs)
 
         assistant_content = response.content
         messages.append({"role": "assistant", "content": assistant_content})

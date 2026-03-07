@@ -1397,7 +1397,10 @@ def admin_save_ai_config():
     save_data = {k: v for k, v in data.items() if k in allowed}
     if not save_data:
         return jsonify({"error": "无有效配置项"}), 400
-    db.set_system_config_batch(save_data)
+    try:
+        db.set_system_config_batch(save_data)
+    except Exception as e:
+        return jsonify({"error": f"数据库写入失败：{str(e)}"}), 500
     return jsonify({"success": True, "message": "AI 配置已保存"})
 
 
