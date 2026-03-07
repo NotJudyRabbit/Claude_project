@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>训练计划 - 训练伤康复助手</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { primary: '#1E40AF', success: '#10B981', warning: '#F59E0B', danger: '#EF4444' },
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        },
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; }
+    .nav-shadow { box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1); }
+    .card-shadow { box-shadow: 0 4px 12px -2px rgba(0,0,0,0.08), 0 2px 4px -1px rgba(0,0,0,0.04); }
+
+    /* 时间线竖线 */
+    .timeline-track { position: absolute; left: 19px; top: 48px; bottom: 0; width: 2px; }
+
+    /* 阶段状态圆点 */
+    .phase-dot { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; border: 3px solid white; }
+    .phase-dot.done     { box-shadow: 0 0 0 2px #D1D5DB; }
+    .phase-dot.current  { box-shadow: 0 0 0 4px rgba(30,64,175,0.25), 0 0 0 2px #1E40AF; animation: pulse-ring 2s infinite; }
+    .phase-dot.upcoming { box-shadow: 0 0 0 2px #E5E7EB; }
+    @keyframes pulse-ring { 0%,100%{ box-shadow: 0 0 0 4px rgba(30,64,175,0.25), 0 0 0 2px #1E40AF; } 50%{ box-shadow: 0 0 0 7px rgba(30,64,175,0.12), 0 0 0 2px #1E40AF; } }
+
+    /* 阶段展开 */
+    .phase-body { overflow: hidden; transition: max-height 0.35s ease; max-height: 0; }
+    .phase-body.open { max-height: 3000px; }
+
+    /* 提示等级 */
+    .tip-重要 { background:#FEE2E2; color:#DC2626; }
+    .tip-注意 { background:#FEF3C7; color:#D97706; }
+    .tip-一般 { background:#DBEAFE; color:#1D4ED8; }
+
+    /* 打印 */
+    @media print {
+      header, .no-print { display: none !important; }
+      .phase-body { max-height: none !important; }
+      body { font-size: 11px; }
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<!-- 顶栏 -->
+<header class="h-14 bg-white border-b border-gray-200 nav-shadow flex items-center px-4 gap-3 sticky top-0 z-30">
+  <div class="flex items-center gap-2 flex-shrink-0">
+    <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white text-sm font-bold">医</div>
+    <span class="text-gray-800 font-bold text-base whitespace-nowrap hidden sm:inline">训练伤康复助手</span>
+  </div>
+  <div class="flex-1"></div>
+  <nav class="flex items-center gap-1 flex-shrink-0">
+    <a href="/" class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-primary hover:bg-blue-50 transition-colors whitespace-nowrap">主界面</a>
+    <a href="/profile" class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-primary hover:bg-blue-50 transition-colors whitespace-nowrap">个人档案</a>
+    <a href="/plan" class="px-3 py-1.5 rounded-lg text-sm font-semibold text-primary bg-blue-50 transition-colors whitespace-nowrap">训练计划</a>
+    <a href="/checkin" class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-primary hover:bg-blue-50 transition-colors whitespace-nowrap">今日打卡</a>
+    <a href="/companion" class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-primary hover:bg-blue-50 transition-colors whitespace-nowrap">智能学伴</a>
+  </nav>
+</header>
+
+<!-- 无数据提示 -->
+<div id="page-empty" class="hidden max-w-lg mx-auto px-4 py-24 text-center">
+  <div class="text-5xl mb-4">📋</div>
+  <h2 class="text-lg font-bold text-gray-800 mb-2">暂无训练计划</h2>
+  <p class="text-gray-400 text-sm mb-6">请先完善个人档案，系统将自动分析并生成完整训练计划。</p>
+  <a href="/profile" class="inline-block bg-primary text-white px-6 py-2.5 rounded-xl font-medium text-sm hover:bg-blue-800 transition-colors">前往完善档案</a>
+</div>
+
+<!-- 主内容 -->
+<div id="page-main" class="hidden max-w-3xl mx-auto px-4 py-6 space-y-5">
+
+  <!-- 顶部概览卡 -->
+  <div class="bg-gradient-to-br from-blue-700 via-primary to-blue-500 rounded-2xl p-6 text-white card-shadow">
+    <div class="flex items-start justify-between gap-4">
+      <div class="flex-1">
+        <p class="text-blue-200 text-xs mb-1" id="hdr-date"></p>
+        <h1 class="text-xl font-bold mb-1"><span id="hdr-name"></span> · 个人康复训练计划</h1>
+        <p id="hdr-injury" class="text-blue-100 text-sm leading-relaxed mb-3"></p>
+        <div class="flex flex-wrap gap-2">
+          <span id="hdr-stage"   class="bg-white bg-opacity-20 text-white text-xs px-3 py-1 rounded-full font-medium"></span>
+          <span id="hdr-severity"class="bg-white bg-opacity-20 text-white text-xs px-3 py-1 rounded-full font-medium"></span>
+          <span id="hdr-total"   class="bg-white bg-opacity-20 text-white text-xs px-3 py-1 rounded-full font-medium"></span>
+        </div>
+      </div>
+      <div class="text-5xl opacity-70 flex-shrink-0">🏋️</div>
+    </div>
+
+    <!-- 4阶段进度条 -->
+    <div id="stage-progress" class="mt-5 grid grid-cols-4 gap-1"></div>
+  </div>
+
+  <!-- 总体原则 -->
+  <div class="bg-white rounded-2xl card-shadow p-5">
+    <h2 class="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+      <span class="w-1 h-4 bg-primary rounded-full"></span>总体训练原则
+    </h2>
+    <ul id="principles-list" class="space-y-2"></ul>
+  </div>
+
+  <!-- 分阶段训练计划（完整四阶段时间线） -->
+  <div>
+    <h2 class="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2 px-1">
+      <span class="w-1 h-4 bg-warning rounded-full"></span>分阶段训练计划（全程4阶段）
+    </h2>
+    <div id="phases-container" class="relative space-y-3">
+      <div class="timeline-track bg-gradient-to-b from-gray-200 via-gray-200 to-transparent"></div>
+    </div>
+  </div>
+
+  <!-- 重返训练达标标准 -->
+  <div class="bg-white rounded-2xl card-shadow p-5">
+    <h2 class="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+      <span class="w-1 h-4 bg-success rounded-full"></span>重返训练达标标准
+    </h2>
+    <p class="text-xs text-gray-400 mb-3">须同时满足以下所有条件，方可视为康复完成，重返正常训练：</p>
+    <ul id="return-criteria-list" class="space-y-2"></ul>
+  </div>
+
+  <!-- 衣食行三方面注意 -->
+  <div>
+    <h2 class="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2 px-1">
+      <span class="w-1 h-4 bg-danger rounded-full"></span>生活注意事项
+    </h2>
+    <div id="lifestyle-container" class="grid grid-cols-1 gap-4"></div>
+  </div>
+
+  <!-- 操作栏 -->
+  <div class="no-print flex gap-3 pb-6">
+    <a href="/checkin" class="flex-1 text-center bg-success hover:bg-green-700 text-white py-3 rounded-xl font-semibold text-sm transition-colors">开始今日训练 →</a>
+    <button onclick="window.print()" class="px-5 py-3 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl text-sm font-medium transition-colors">🖨 打印计划</button>
+  </div>
+
+</div>
+
+<script>
+  const PHASE_CFG = {
+    "急性期":  { dot:"bg-red-400",    border:"border-red-200",    bg:"bg-red-50",     text:"text-red-700",    badge:"bg-red-100 text-red-700",    bar:"bg-red-400",    icon:"🔴", label:"急" },
+    "亚急性期":{ dot:"bg-orange-400", border:"border-orange-200", bg:"bg-orange-50",  text:"text-orange-700", badge:"bg-orange-100 text-orange-700",bar:"bg-orange-400", icon:"🟠", label:"亚" },
+    "恢复期":  { dot:"bg-blue-500",   border:"border-blue-300",   bg:"bg-blue-50",    text:"text-blue-700",   badge:"bg-blue-100 text-blue-700",   bar:"bg-blue-500",   icon:"🔵", label:"复" },
+    "强化期":  { dot:"bg-green-500",  border:"border-green-300",  bg:"bg-green-50",   text:"text-green-700",  badge:"bg-green-100 text-green-700", bar:"bg-green-500",  icon:"🟢", label:"强" },
+  };
+
+  async function loadPlan() {
+    const resp = await fetch('/api/training-plan');
+    const text = await resp.text();
+    if (!resp.ok || text === 'null' || !text) {
+      document.getElementById('page-empty').classList.remove('hidden');
+      return;
+    }
+    const plan = JSON.parse(text);
+    if (!plan) { document.getElementById('page-empty').classList.remove('hidden'); return; }
+
+    document.getElementById('page-main').classList.remove('hidden');
+    renderHeader(plan);
+    renderStageProgress(plan.phases || []);
+    renderPrinciples(plan.overall_principles || []);
+    renderPhases(plan.phases || []);
+    renderReturnCriteria(plan.return_criteria || {});
+    renderLifestyle(plan.lifestyle || {});
+
+    // 自动展开当前阶段
+    setTimeout(() => {
+      const currentBtn = document.querySelector('.phase-card[data-status="current"] .phase-toggle');
+      if (currentBtn) currentBtn.click();
+    }, 100);
+  }
+
+  function renderHeader(plan) {
+    document.getElementById('hdr-date').textContent = (plan.generated_at || '') + ' 生成';
+    document.getElementById('hdr-name').textContent = plan.patient_name || '';
+    document.getElementById('hdr-injury').textContent = plan.injury || '';
+    document.getElementById('hdr-stage').textContent = '当前阶段：' + (plan.current_stage || '');
+    document.getElementById('hdr-severity').textContent = '伤情：' + (plan.severity || '') + '　疼痛 ' + (plan.pain || '—') + '/10';
+    document.getElementById('hdr-total').textContent = '预计全程：' + (plan.total_weeks || '');
+  }
+
+  function renderStageProgress(phases) {
+    const el = document.getElementById('stage-progress');
+    el.innerHTML = phases.map(ph => {
+      const cfg = PHASE_CFG[ph.stage] || {};
+      const isDone     = ph.status === 'done';
+      const isCurrent  = ph.status === 'current';
+      const isUpcoming = ph.status === 'upcoming';
+      return `
+        <div class="flex flex-col items-center gap-1">
+          <div class="w-full h-1.5 rounded-full ${isDone ? cfg.bar : isCurrent ? cfg.bar + ' opacity-90' : 'bg-white bg-opacity-25'}"></div>
+          <span class="text-xs ${isDone ? 'text-blue-200' : isCurrent ? 'text-white font-bold' : 'text-blue-300'} whitespace-nowrap">
+            ${cfg.icon} ${ph.stage}${isCurrent ? ' ◀' : ''}
+          </span>
+        </div>`;
+    }).join('');
+  }
+
+  function renderPrinciples(list) {
+    document.getElementById('principles-list').innerHTML = list.map((p, i) => `
+      <li class="flex items-start gap-3 text-sm text-gray-700">
+        <span class="w-5 h-5 rounded-full bg-blue-100 text-primary text-xs flex items-center justify-center font-bold flex-shrink-0 mt-0.5">${i+1}</span>
+        <span class="leading-relaxed">${esc(p)}</span>
+      </li>`).join('');
+  }
+
+  function renderPhases(phases) {
+    const container = document.getElementById('phases-container');
+    container.querySelectorAll('.phase-card').forEach(el => el.remove());
+
+    phases.forEach(phase => {
+      const cfg = PHASE_CFG[phase.stage] || PHASE_CFG["恢复期"];
+      const isDone    = phase.status === 'done';
+      const isCurrent = phase.status === 'current';
+
+      // 状态标签
+      const statusBadge = isDone
+        ? `<span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">✓ 已完成</span>`
+        : isCurrent
+        ? `<span class="text-xs bg-primary text-white px-2 py-0.5 rounded-full font-bold animate-pulse">▶ 当前阶段</span>`
+        : `<span class="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">待进行</span>`;
+
+      // 卡片整体透明度
+      const opacity = isDone ? 'opacity-70' : '';
+
+      const card = document.createElement('div');
+      card.className = `phase-card relative pl-14 ${opacity}`;
+      card.dataset.status = phase.status;
+
+      card.innerHTML = `
+        <!-- 时间线圆点 -->
+        <div class="phase-dot ${cfg.dot} ${phase.status} absolute left-0 top-0 text-white text-base">
+          ${cfg.icon}
+        </div>
+
+        <!-- 卡片主体 -->
+        <div class="bg-white rounded-2xl card-shadow border-2 ${isCurrent ? cfg.border : 'border-gray-100'} overflow-hidden">
+
+          <!-- 标题行（可点击） -->
+          <button class="phase-toggle w-full text-left px-5 py-4 flex items-center gap-3 hover:bg-gray-50 transition-colors">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap mb-1">
+                ${statusBadge}
+                <span class="text-xs ${cfg.badge} px-2 py-0.5 rounded-full">${esc(phase.week_label)}</span>
+              </div>
+              <p class="text-base font-bold text-gray-800">${esc(phase.stage)} <span class="text-gray-400 font-normal">·</span> ${esc(phase.theme)}</p>
+              <p class="text-xs text-gray-500 mt-0.5 leading-relaxed line-clamp-2">${esc(phase.goal)}</p>
+            </div>
+            <span class="chevron text-gray-400 text-xl flex-shrink-0 transition-transform duration-200">⌄</span>
+          </button>
+
+          <!-- 展开内容 -->
+          <div class="phase-body">
+            <div class="px-5 pb-6 space-y-5 border-t border-gray-100">
+
+              <!-- 阶段目标 -->
+              <div class="pt-4">
+                <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">阶段目标</p>
+                <p class="text-sm text-gray-700 leading-relaxed bg-gray-50 rounded-xl p-4 border border-gray-100">${esc(phase.goal)}</p>
+              </div>
+
+              <!-- 为什么这样训练 -->
+              <div>
+                <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">训练依据</p>
+                <div class="bg-purple-50 border border-purple-100 rounded-xl p-4">
+                  <p class="text-sm text-gray-700 leading-relaxed">${esc(phase.rationale)}</p>
+                </div>
+              </div>
+
+              <!-- 训练内容 -->
+              <div>
+                <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">训练内容（${phase.exercises ? phase.exercises.length : 0} 项）</p>
+                <div class="space-y-2">
+                  ${(phase.exercises || []).map((ex, idx) => `
+                    <div class="flex items-start gap-3 rounded-xl px-4 py-3 border ${cfg.border} ${cfg.bg}">
+                      <span class="w-6 h-6 rounded-full ${cfg.dot} text-white text-xs flex items-center justify-center font-bold flex-shrink-0 mt-0.5">${idx+1}</span>
+                      <div class="flex-1 min-w-0">
+                        <p class="text-sm font-semibold text-gray-800">${esc(ex.name)}</p>
+                        <div class="flex flex-wrap gap-2 mt-1">
+                          <span class="text-xs text-gray-600 bg-white border border-gray-200 px-2 py-0.5 rounded-full">📏 ${esc(ex.freq)}</span>
+                          <span class="text-xs text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded-full">🎯 ${esc(ex.focus)}</span>
+                        </div>
+                      </div>
+                    </div>`).join('')}
+                </div>
+              </div>
+
+              <!-- 注意事项 -->
+              <div>
+                <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">训练注意事项</p>
+                <div class="space-y-2">
+                  ${(phase.key_points || []).map(kp => `
+                    <div class="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">
+                      <span class="text-danger font-bold flex-shrink-0 mt-0.5 text-sm">!</span>
+                      <span class="text-sm text-gray-700 leading-relaxed">${esc(kp)}</span>
+                    </div>`).join('')}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>`;
+
+      card.querySelector('.phase-toggle').addEventListener('click', function() {
+        const body = this.closest('.bg-white').querySelector('.phase-body');
+        const chevron = this.querySelector('.chevron');
+        const isOpen = body.classList.contains('open');
+        body.classList.toggle('open', !isOpen);
+        chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+      });
+
+      container.appendChild(card);
+    });
+  }
+
+  function renderReturnCriteria(criteria) {
+    const el = document.getElementById('return-criteria-list');
+    (criteria.items || []).forEach((item, i) => {
+      el.innerHTML += `
+        <li class="flex items-start gap-3">
+          <div class="w-6 h-6 rounded-full border-2 border-success flex items-center justify-center text-xs text-success font-bold flex-shrink-0 mt-0.5">${i+1}</div>
+          <span class="text-sm text-gray-700 leading-relaxed">${esc(item)}</span>
+        </li>`;
+    });
+  }
+
+  function renderLifestyle(lifestyle) {
+    const container = document.getElementById('lifestyle-container');
+    const colorMap = {
+      "衣": { bg:"bg-purple-50", border:"border-purple-200", bar:"bg-purple-500", hdr:"text-purple-800" },
+      "食": { bg:"bg-green-50",  border:"border-green-200",  bar:"bg-green-500",  hdr:"text-green-800"  },
+      "行": { bg:"bg-blue-50",   border:"border-blue-200",   bar:"bg-blue-500",   hdr:"text-blue-800"   },
+    };
+    container.innerHTML = Object.entries(lifestyle).map(([key, section]) => {
+      const c = colorMap[key] || colorMap["行"];
+      return `
+        <div class="bg-white rounded-2xl card-shadow border border-gray-100 overflow-hidden">
+          <div class="${c.bg} px-5 py-3 border-b ${c.border} flex items-center gap-3">
+            <div class="w-9 h-9 ${c.bg} border ${c.border} rounded-xl flex items-center justify-center text-xl flex-shrink-0">${section.icon || '📌'}</div>
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded ${c.bar} flex items-center justify-center text-white text-xs font-bold">${key}</span>
+              <h3 class="text-sm font-bold ${c.hdr}">${esc(section.title)}</h3>
+            </div>
+          </div>
+          <div class="p-4 space-y-3">
+            ${(section.tips || []).map(tip => `
+              <div class="flex items-start gap-3">
+                <span class="tip-${esc(tip.level)} text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 mt-0.5 whitespace-nowrap">${esc(tip.level)}</span>
+                <div>
+                  <p class="text-sm font-semibold text-gray-800 mb-0.5">${esc(tip.label)}</p>
+                  <p class="text-xs text-gray-600 leading-relaxed">${esc(tip.content)}</p>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function esc(str) {
+    return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  loadPlan();
+</script>
+</body>
+</html>

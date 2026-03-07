@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能学伴 - 训练伤康复助手</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { primary: '#1E40AF', success: '#10B981', warning: '#F59E0B', danger: '#EF4444' },
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        },
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; }
+    .nav-shadow { box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06); }
+    #chat-messages { scroll-behavior: smooth; }
+    .msg-bubble { max-width: 80%; word-break: break-word; white-space: pre-wrap; line-height: 1.6; }
+    .typing-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #94a3b8; animation: blink 1.2s infinite; }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes blink { 0%,80%,100%{ opacity:0.2 } 40%{ opacity:1 } }
+    .suggestion-chip { transition: background 0.15s, color 0.15s; cursor: pointer; }
+    .suggestion-chip:hover { background: #1e40af; color: #fff; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+
+  <!-- 顶部导航 -->
+  <header class="h-14 bg-white border-b border-gray-200 nav-shadow flex items-center px-4 gap-3 sticky top-0 z-30">
+    <div class="flex items-center gap-2 flex-shrink-0">
+      <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white text-sm font-bold">医</div>
+      <span class="text-gray-800 font-bold text-base whitespace-nowrap hidden sm:inline">训练伤康复助手</span>
+    </div>
+    <div class="flex-1"></div>
+    <nav class="flex items-center gap-1 flex-shrink-0">
+      <a href="/" class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-primary hover:bg-blue-50 transition-colors whitespace-nowrap">主界面</a>
+      <a href="/profile" class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-primary hover:bg-blue-50 transition-colors whitespace-nowrap">个人档案</a>
+      <a href="/plan" class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-primary hover:bg-blue-50 transition-colors whitespace-nowrap">训练计划</a>
+      <a href="/checkin" class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-primary hover:bg-blue-50 transition-colors whitespace-nowrap">今日打卡</a>
+      <a href="/companion" class="px-3 py-1.5 rounded-lg text-sm font-semibold text-primary bg-blue-50 transition-colors whitespace-nowrap">智能学伴</a>
+    </nav>
+  </header>
+
+  <!-- 主体：左侧患者信息 + 右侧聊天 -->
+  <div class="flex flex-1 max-w-6xl mx-auto w-full px-4 py-4 gap-4 min-h-0" style="height: calc(100vh - 56px)">
+
+    <!-- 左侧：患者信息卡 -->
+    <aside class="w-64 flex-shrink-0 flex flex-col gap-3">
+
+      <!-- 患者卡 -->
+      <div id="patient-card" class="bg-white rounded-xl shadow p-4 text-sm">
+        <div class="flex items-center gap-2 mb-3">
+          <div id="patient-avatar" class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-xl">🧑</div>
+          <div>
+            <p id="patient-name" class="font-semibold text-gray-800">加载中...</p>
+            <p id="patient-stage" class="text-xs text-gray-400">—</p>
+          </div>
+        </div>
+        <div class="space-y-1.5 text-xs text-gray-600">
+          <div class="flex gap-1"><span class="text-gray-400 w-12">伤情</span><span id="patient-injury" class="flex-1">—</span></div>
+          <div class="flex gap-1"><span class="text-gray-400 w-12">疼痛</span><span id="patient-pain" class="flex-1">—</span></div>
+          <div class="flex gap-1"><span class="text-gray-400 w-12">今日</span><span id="patient-today" class="flex-1">—</span></div>
+        </div>
+      </div>
+
+      <!-- 当前训练计划简要 -->
+      <div id="plan-card" class="bg-white rounded-xl shadow p-4 text-sm hidden">
+        <p class="font-semibold text-gray-700 mb-2 text-xs">当前训练计划</p>
+        <div id="plan-summary" class="text-xs text-gray-600 space-y-1"></div>
+      </div>
+
+      <!-- 常见问题快捷入口 -->
+      <div class="bg-white rounded-xl shadow p-4">
+        <p class="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">快捷提问</p>
+        <div class="space-y-1.5">
+          <button class="suggestion-chip w-full text-left text-xs px-3 py-2 rounded-lg bg-gray-50 text-gray-700 border border-gray-200"
+            onclick="sendSuggestion('我今天训练后膝盖有些酸痛，正常吗？')">训练后酸痛正常吗？</button>
+          <button class="suggestion-chip w-full text-left text-xs px-3 py-2 rounded-lg bg-gray-50 text-gray-700 border border-gray-200"
+            onclick="sendSuggestion('我的训练强度是否合适？可以增加难度吗？')">训练强度合适吗？</button>
+          <button class="suggestion-chip w-full text-left text-xs px-3 py-2 rounded-lg bg-gray-50 text-gray-700 border border-gray-200"
+            onclick="sendSuggestion('我现在能进行跑步训练吗？')">可以开始跑步吗？</button>
+          <button class="suggestion-chip w-full text-left text-xs px-3 py-2 rounded-lg bg-gray-50 text-gray-700 border border-gray-200"
+            onclick="sendSuggestion('如何判断自己是否可以重返运动场？')">何时可以重返运动？</button>
+          <button class="suggestion-chip w-full text-left text-xs px-3 py-2 rounded-lg bg-gray-50 text-gray-700 border border-gray-200"
+            onclick="sendSuggestion('根据我的恢复情况，帮我调整一下训练计划。')">帮我优化训练计划</button>
+        </div>
+      </div>
+
+      <!-- AI 状态 -->
+      <div id="ai-status" class="bg-white rounded-xl shadow p-3 text-xs text-gray-500 text-center">
+        正在检测 AI 服务...
+      </div>
+    </aside>
+
+    <!-- 右侧：聊天区 -->
+    <div class="flex-1 flex flex-col bg-white rounded-xl shadow overflow-hidden">
+
+      <!-- 聊天标题栏 -->
+      <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm">🤖</div>
+          <div>
+            <p class="text-sm font-semibold text-gray-800">智能学伴</p>
+            <p class="text-xs text-gray-400" id="ai-model-label">AI 康复助手</p>
+          </div>
+        </div>
+        <button onclick="clearChat()" class="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded hover:bg-gray-100 transition-colors">清空对话</button>
+      </div>
+
+      <!-- 消息区 -->
+      <div id="chat-messages" class="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <!-- 欢迎消息 -->
+        <div class="flex items-start gap-2">
+          <div class="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs flex-shrink-0 mt-0.5">🤖</div>
+          <div class="msg-bubble bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-gray-700">
+            你好！我是你的智能康复学伴。我了解你的训练计划和近期打卡记录，可以帮你解答康复过程中的疑问，也可以根据你的情况调整训练方案。
+
+有什么我可以帮你的吗？
+          </div>
+        </div>
+      </div>
+
+      <!-- 计划更新确认卡（隐藏，收到方案建议时显示） -->
+      <div id="plan-update-card" class="hidden mx-4 mb-3 bg-blue-50 border border-blue-200 rounded-xl p-4">
+        <div class="flex items-start gap-2 mb-3">
+          <span class="text-blue-600 text-lg">📋</span>
+          <div>
+            <p class="text-sm font-semibold text-blue-800">AI 训练方案建议</p>
+            <p class="text-xs text-blue-600 mt-0.5">AI 根据你的情况生成了新的训练建议，确认后将更新你的训练计划</p>
+          </div>
+        </div>
+        <div id="plan-update-preview" class="bg-white rounded-lg p-3 text-xs text-gray-700 mb-3 max-h-36 overflow-y-auto space-y-1"></div>
+        <div class="flex gap-2">
+          <button onclick="applyPlanUpdate()" class="flex-1 bg-blue-600 text-white text-xs font-medium py-2 rounded-lg hover:bg-blue-700 transition-colors">确认更新训练计划</button>
+          <button onclick="dismissPlanUpdate()" class="flex-1 bg-white text-gray-600 text-xs font-medium py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">取消</button>
+        </div>
+      </div>
+
+      <!-- 输入区 -->
+      <div class="px-4 py-3 border-t border-gray-100">
+        <div class="flex items-end gap-2">
+          <textarea id="chat-input"
+            class="flex-1 resize-none border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+            rows="2" maxlength="1000"
+            placeholder="输入你的问题，例如：训练后膝盖疼痛怎么办？"
+            onkeydown="handleInputKey(event)"></textarea>
+          <button id="btn-send"
+            onclick="sendMessage()"
+            class="flex-shrink-0 w-10 h-10 bg-primary text-white rounded-xl flex items-center justify-center hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+        <p class="text-xs text-gray-400 mt-1.5 text-right" id="char-count">0 / 1000</p>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+// ─── 状态 ───
+let chatHistory = [];
+let pendingPlanSuggestion = null;
+let patientData = null;
+
+// ─── 初始化 ───
+async function init() {
+  await Promise.all([loadPatientInfo(), checkAiStatus()]);
+  loadChatHistory();
+}
+
+async function loadPatientInfo() {
+  try {
+    const me = await apiFetch('/api/me');
+    patientData = me;
+    document.getElementById('patient-name').textContent = me.name || '未知患者';
+    document.getElementById('patient-stage').textContent = me.recovery_stage || '未设置阶段';
+    document.getElementById('patient-injury').textContent = me.injury_description || '—';
+    document.getElementById('patient-pain').textContent = me.pain_level ? me.pain_level + ' / 10' : '—';
+
+    // 加载今日打卡状态
+    const checkins = await apiFetch('/api/checkins');
+    const today = new Date().toISOString().slice(0, 10);
+    const todayCheckin = (checkins || []).find(c => (c.date || '').startsWith(today));
+    document.getElementById('patient-today').textContent = todayCheckin ? '已打卡 ✓' : '未打卡';
+
+    // 加载当前训练计划简要
+    const planData = await apiFetch('/api/plan/current');
+    if (planData && planData.plan) {
+      const plan = planData.plan;
+      const exercises = plan['动作'] || plan['exercises'] || [];
+      if (exercises.length > 0) {
+        const planCard = document.getElementById('plan-card');
+        planCard.classList.remove('hidden');
+        const summary = document.getElementById('plan-summary');
+        summary.innerHTML = `<p class="text-gray-500">阶段：${plan['阶段'] || plan['stage'] || '—'}</p>`;
+        exercises.slice(0, 3).forEach(ex => {
+          const name = ex['名称'] || ex.name || '—';
+          const reps = ex['次数'] || ex.reps || '';
+          summary.innerHTML += `<p class="flex gap-1"><span class="text-blue-500">·</span><span>${name}${reps ? ' · ' + reps : ''}</span></p>`;
+        });
+        if (exercises.length > 3) {
+          summary.innerHTML += `<p class="text-gray-400">...共 ${exercises.length} 个动作</p>`;
+        }
+      }
+    }
+
+    // 设置 avatar
+    const savedAvatar = localStorage.getItem('userAvatar');
+    if (savedAvatar) {
+      const el = document.getElementById('patient-avatar');
+      if (savedAvatar.startsWith('data:')) {
+        el.innerHTML = `<img src="${savedAvatar}" class="w-full h-full object-cover rounded-full">`;
+      } else {
+        el.textContent = savedAvatar;
+      }
+    }
+  } catch(e) {
+    document.getElementById('patient-name').textContent = '未绑定患者';
+    document.getElementById('patient-stage').textContent = '请先完善个人档案';
+  }
+}
+
+async function checkAiStatus() {
+  const el = document.getElementById('ai-status');
+  try {
+    const data = await apiFetch('/admin/api/ai-config');
+    if (data.ai_provider && data.ai_api_key) {
+      el.textContent = '✅ AI 服务已就绪';
+      el.className = 'bg-green-50 rounded-xl shadow p-3 text-xs text-green-700 text-center';
+      document.getElementById('ai-model-label').textContent = (data.ai_provider || '') + ' · ' + (data.ai_model || '');
+    } else {
+      el.textContent = '⚠ AI 未配置，请联系管理员';
+      el.className = 'bg-yellow-50 rounded-xl shadow p-3 text-xs text-yellow-700 text-center';
+    }
+  } catch(e) {
+    el.textContent = 'AI 状态未知';
+  }
+}
+
+// ─── 聊天历史持久化 ───
+function saveChatHistory() {
+  localStorage.setItem('companion_history', JSON.stringify(chatHistory.slice(-40)));
+}
+
+function loadChatHistory() {
+  const saved = localStorage.getItem('companion_history');
+  if (!saved) return;
+  try {
+    const history = JSON.parse(saved);
+    if (!history.length) return;
+    chatHistory = history;
+    // 重绘历史消息
+    history.forEach(msg => {
+      if (msg.role === 'user') appendUserMsg(msg.content, false);
+      else if (msg.role === 'assistant') appendAiMsg(msg.content, false);
+    });
+  } catch(e) {}
+}
+
+function clearChat() {
+  if (!confirm('确定要清空所有对话记录吗？')) return;
+  chatHistory = [];
+  pendingPlanSuggestion = null;
+  localStorage.removeItem('companion_history');
+  const container = document.getElementById('chat-messages');
+  container.innerHTML = `
+    <div class="flex items-start gap-2">
+      <div class="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs flex-shrink-0 mt-0.5">🤖</div>
+      <div class="msg-bubble bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-gray-700">对话已清空，有什么我可以帮你的吗？</div>
+    </div>`;
+  document.getElementById('plan-update-card').classList.add('hidden');
+}
+
+// ─── 消息发送 ───
+function handleInputKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+  document.getElementById('char-count').textContent = e.target.value.length + ' / 1000';
+}
+
+async function sendSuggestion(text) {
+  document.getElementById('chat-input').value = text;
+  await sendMessage();
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  const btn = document.getElementById('btn-send');
+  input.value = '';
+  document.getElementById('char-count').textContent = '0 / 1000';
+  btn.disabled = true;
+
+  // 显示用户消息
+  appendUserMsg(text);
+  chatHistory.push({ role: 'user', content: text });
+  saveChatHistory();
+
+  // 显示 AI 思考中
+  const typingId = 'typing-' + Date.now();
+  appendTyping(typingId);
+
+  try {
+    const resp = await apiFetch('/api/companion/chat', 'POST', {
+      message: text,
+      history: chatHistory.slice(-10)  // 只发最近10条保持 token 可控
+    });
+
+    removeTyping(typingId);
+    const reply = resp.reply || '（无回复）';
+    appendAiMsg(reply);
+    chatHistory.push({ role: 'assistant', content: reply });
+    saveChatHistory();
+
+    // 检测是否有方案建议
+    if (resp.plan_suggestion) {
+      pendingPlanSuggestion = resp.plan_suggestion;
+      showPlanUpdateCard(resp.plan_suggestion);
+    }
+  } catch(e) {
+    removeTyping(typingId);
+    appendAiMsg('抱歉，请求失败：' + e.message + '\n\n如 AI 服务未配置，请联系管理员在后台设置 API Key。');
+  }
+
+  btn.disabled = false;
+  input.focus();
+}
+
+// ─── DOM 操作 ───
+function appendUserMsg(text, scroll = true) {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'flex items-start gap-2 flex-row-reverse';
+  div.innerHTML = `
+    <div class="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs flex-shrink-0 mt-0.5">我</div>
+    <div class="msg-bubble bg-blue-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 text-sm">${escHtml(text)}</div>`;
+  container.appendChild(div);
+  if (scroll) container.scrollTop = container.scrollHeight;
+}
+
+function appendAiMsg(text, scroll = true) {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'flex items-start gap-2';
+  div.innerHTML = `
+    <div class="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs flex-shrink-0 mt-0.5">🤖</div>
+    <div class="msg-bubble bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-gray-700">${escHtml(text)}</div>`;
+  container.appendChild(div);
+  if (scroll) container.scrollTop = container.scrollHeight;
+}
+
+function appendTyping(id) {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.id = id;
+  div.className = 'flex items-start gap-2';
+  div.innerHTML = `
+    <div class="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs flex-shrink-0 mt-0.5">🤖</div>
+    <div class="bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1">
+      <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>
+    </div>`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function removeTyping(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+}
+
+// ─── 计划更新确认 ───
+function showPlanUpdateCard(suggestion) {
+  const card = document.getElementById('plan-update-card');
+  const preview = document.getElementById('plan-update-preview');
+  card.classList.remove('hidden');
+
+  // 渲染方案预览
+  preview.innerHTML = '';
+  if (suggestion.goal) {
+    preview.innerHTML += `<p class="font-medium text-gray-800">目标：${escHtml(suggestion.goal)}</p>`;
+  }
+  const exercises = suggestion['动作'] || suggestion.exercises || [];
+  if (exercises.length) {
+    preview.innerHTML += `<p class="font-medium text-gray-700 mt-1">训练动作（${exercises.length} 项）：</p>`;
+    exercises.forEach(ex => {
+      const name = ex['名称'] || ex.name || '—';
+      const reps = ex['次数'] || ex.reps || '';
+      preview.innerHTML += `<p class="flex gap-1 text-gray-600"><span class="text-blue-500">·</span>${escHtml(name)}${reps ? ' · ' + escHtml(reps) : ''}</p>`;
+    });
+  }
+  if (!exercises.length && !suggestion.goal) {
+    preview.innerHTML = `<pre class="text-gray-600 text-xs overflow-auto">${escHtml(JSON.stringify(suggestion, null, 2))}</pre>`;
+  }
+
+  // 滚动让确认卡可见
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function applyPlanUpdate() {
+  if (!pendingPlanSuggestion) return;
+  const btn = document.querySelector('#plan-update-card button:first-child');
+  btn.disabled = true;
+  btn.textContent = '更新中...';
+  try {
+    await apiFetch('/api/companion/apply-plan', 'POST', { plan_suggestion: pendingPlanSuggestion });
+    dismissPlanUpdate();
+    appendAiMsg('训练计划已更新！你可以在「训练计划」页面查看新方案，今天的打卡将按新方案进行。');
+    chatHistory.push({ role: 'assistant', content: '训练计划已更新！你可以在「训练计划」页面查看新方案，今天的打卡将按新方案进行。' });
+    saveChatHistory();
+    // 刷新左侧计划简要
+    await loadPatientInfo();
+  } catch(e) {
+    appendAiMsg('更新失败：' + e.message);
+    btn.disabled = false;
+    btn.textContent = '确认更新训练计划';
+  }
+}
+
+function dismissPlanUpdate() {
+  pendingPlanSuggestion = null;
+  document.getElementById('plan-update-card').classList.add('hidden');
+}
+
+// ─── 工具函数 ───
+async function apiFetch(url, method = 'GET', body = null) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const resp = await fetch(url, opts);
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || resp.statusText);
+  return data;
+}
+
+function escHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/\n/g, '<br>');
+}
+
+// ─── 启动 ───
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>知识库 - 训练伤康复助手</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { primary: '#1E40AF', success: '#10B981', warning: '#F59E0B', danger: '#EF4444' },
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        },
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; }
+    .nav-shadow { box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06); }
+    .drop-zone { border: 2px dashed #CBD5E1; transition: border-color 0.2s, background 0.2s; }
+    .drop-zone.drag-over { border-color: #1E40AF; background: #EFF6FF; }
+    .file-card { transition: box-shadow 0.15s, transform 0.15s; }
+    .file-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); transform: translateY(-1px); }
+    mark.hl { background: #FEF08A; border-radius: 2px; padding: 0 2px; }
+    .spinner { animation: spin 0.8s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .tab-btn { border-bottom: 2px solid transparent; }
+    .tab-btn.active { border-bottom-color: #1E40AF; color: #1E40AF; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- Header -->
+  <header class="h-14 bg-white border-b border-gray-200 nav-shadow flex items-center px-4 gap-3 sticky top-0 z-30">
+    <div class="flex items-center gap-2 flex-shrink-0">
+      <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white text-sm font-bold">医</div>
+      <span class="text-gray-800 font-bold text-base whitespace-nowrap hidden sm:inline">训练伤康复助手</span>
+    </div>
+    <div class="flex-1"></div>
+    <nav class="flex items-center gap-1 flex-shrink-0">
+      <a href="/" class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-primary hover:bg-blue-50 transition-colors whitespace-nowrap">主界面</a>
+      <a href="/profile" class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-primary hover:bg-blue-50 transition-colors whitespace-nowrap">个人档案</a>
+      <a href="/plan" class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-primary hover:bg-blue-50 transition-colors whitespace-nowrap">训练计划</a>
+      <a href="/knowledge" class="px-3 py-1.5 rounded-lg text-sm font-semibold text-primary bg-blue-50 transition-colors whitespace-nowrap">知识库</a>
+      <a href="/companion" class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-primary hover:bg-blue-50 transition-colors whitespace-nowrap">智能学伴</a>
+    </nav>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- Page title + RAG banner -->
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h1 class="text-xl font-bold text-gray-800">知识库</h1>
+        <p class="text-sm text-gray-500 mt-0.5">上传康复资料，智能学伴将自动检索知识库为您解答</p>
+      </div>
+      <div class="hidden sm:flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2 text-xs text-blue-700 whitespace-nowrap">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.17A5 5 0 0112 17a5 5 0 01-4.688-3.227l-.347-.17z"/></svg>
+        RAG 已启用 · 智能学伴将自动引用知识库
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex gap-6 border-b border-gray-200">
+      <button onclick="switchTab('library')" id="tab-library" class="tab-btn active pb-2 text-sm font-medium text-gray-600 transition-colors">
+        资料库
+        <span id="library-count" class="ml-1.5 bg-gray-100 text-gray-500 text-xs px-1.5 py-0.5 rounded-full">0</span>
+      </button>
+      <button onclick="switchTab('upload')" id="tab-upload" class="tab-btn pb-2 text-sm font-medium text-gray-600 transition-colors">
+        上传资料
+      </button>
+      <button onclick="switchTab('search')" id="tab-search" class="tab-btn pb-2 text-sm font-medium text-gray-600 transition-colors">
+        知识检索
+      </button>
+    </div>
+
+    <!-- ===== TAB: Library ===== -->
+    <div id="panel-library" class="space-y-4">
+      <!-- Loading -->
+      <div id="lib-loading" class="flex items-center justify-center py-12 text-gray-400 gap-2">
+        <svg class="spinner w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        加载中…
+      </div>
+      <!-- Empty state -->
+      <div id="lib-empty" class="hidden text-center py-16">
+        <div class="text-5xl mb-3">📂</div>
+        <p class="text-gray-500 text-sm">暂无资料，点击「上传资料」开始添加</p>
+        <button onclick="switchTab('upload')" class="mt-4 px-4 py-2 bg-primary text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">上传第一份资料</button>
+      </div>
+      <!-- Grid -->
+      <div id="lib-grid" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+
+    <!-- ===== TAB: Upload ===== -->
+    <div id="panel-upload" class="hidden space-y-4">
+
+      <!-- Drop zone -->
+      <div id="drop-zone" class="drop-zone rounded-2xl p-8 text-center cursor-pointer" onclick="document.getElementById('file-input').click()">
+        <div class="text-4xl mb-3">📎</div>
+        <p class="text-gray-700 font-medium">拖拽文件到此处，或点击选择</p>
+        <p class="text-gray-400 text-xs mt-1">支持 PDF · DOCX · TXT · XLSX · EPUB · MOBI · MP4 · MOV · AVI（单文件最大 200 MB）</p>
+        <input id="file-input" type="file" class="hidden" multiple
+          accept=".pdf,.docx,.doc,.txt,.xlsx,.xls,.epub,.mobi,.mp4,.mov,.avi,.mkv,.m4v">
+      </div>
+
+      <!-- Pending queue -->
+      <div id="pending-queue" class="space-y-2 hidden">
+        <h3 class="text-sm font-semibold text-gray-700">待上传文件</h3>
+        <div id="pending-list" class="space-y-2"></div>
+      </div>
+
+      <!-- Metadata form -->
+      <div id="meta-form" class="hidden bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+        <h3 class="text-sm font-semibold text-gray-700">资料信息（可选）</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">标题</label>
+            <input id="meta-title" type="text" placeholder="自动从文件名读取" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">分类</label>
+            <select id="meta-category" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white">
+              <option value="">不分类</option>
+              <option value="康复方案">康复方案</option>
+              <option value="运动医学">运动医学</option>
+              <option value="训练视频">训练视频</option>
+              <option value="教材资料">教材资料</option>
+              <option value="研究论文">研究论文</option>
+              <option value="其他">其他</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">备注说明</label>
+          <textarea id="meta-desc" rows="2" placeholder="简短描述这份资料的内容或用途" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"></textarea>
+        </div>
+        <div class="flex items-center gap-3">
+          <button id="upload-btn" onclick="startUpload()" class="px-5 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
+            <span>开始上传</span>
+          </button>
+          <button onclick="clearPending()" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">清空</button>
+        </div>
+      </div>
+
+      <!-- Upload progress -->
+      <div id="upload-progress" class="hidden bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
+        <h3 class="text-sm font-semibold text-gray-700">上传进度</h3>
+        <div id="progress-list" class="space-y-2"></div>
+      </div>
+    </div>
+
+    <!-- ===== TAB: Search ===== -->
+    <div id="panel-search" class="hidden space-y-4">
+      <!-- Search input -->
+      <div class="bg-white border border-gray-200 rounded-2xl p-4">
+        <div class="flex gap-2">
+          <input id="search-input" type="text" placeholder="输入关键词检索知识库，例如：膝关节康复 / 冷敷方法 / 关节活动度"
+            class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+            onkeydown="if(event.key==='Enter') doSearch()">
+          <button onclick="doSearch()" class="px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap">检索</button>
+        </div>
+        <p class="text-xs text-gray-400 mt-2">使用 BM25 全文检索，支持中文分词，返回最相关的知识片段</p>
+      </div>
+
+      <!-- Results -->
+      <div id="search-results" class="space-y-3"></div>
+    </div>
+
+  </main>
+
+  <!-- Preview modal -->
+  <div id="preview-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden" onclick="closePreview(event)">
+    <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl">
+      <div class="flex items-center justify-between p-4 border-b border-gray-100">
+        <h3 id="preview-title" class="font-semibold text-gray-800 truncate flex-1"></h3>
+        <button onclick="closePreview()" class="ml-3 text-gray-400 hover:text-gray-600 transition-colors">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div id="preview-body" class="p-4 overflow-y-auto text-sm text-gray-700 leading-relaxed whitespace-pre-wrap flex-1"></div>
+    </div>
+  </div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+let pendingFiles = [];
+let currentTab = 'library';
+
+// ─── Tab switching ────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  ['library','upload','search'].forEach(t => {
+    document.getElementById('panel-' + t).classList.toggle('hidden', t !== tab);
+    const btn = document.getElementById('tab-' + t);
+    btn.classList.toggle('active', t === tab);
+    btn.classList.toggle('text-primary', t === tab);
+    btn.classList.toggle('text-gray-600', t !== tab);
+  });
+  if (tab === 'library') loadLibrary();
+}
+
+// ─── Library ──────────────────────────────────────────────────────────────────
+async function loadLibrary() {
+  const loading = document.getElementById('lib-loading');
+  const empty   = document.getElementById('lib-empty');
+  const grid    = document.getElementById('lib-grid');
+  loading.classList.remove('hidden');
+  empty.classList.add('hidden');
+  grid.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/knowledge/items');
+    const data = await res.json();
+    const items = data.items || [];
+    document.getElementById('library-count').textContent = items.length;
+    loading.classList.add('hidden');
+    if (items.length === 0) {
+      empty.classList.remove('hidden');
+    } else {
+      grid.classList.remove('hidden');
+      grid.innerHTML = items.map(renderCard).join('');
+    }
+  } catch(e) {
+    loading.classList.add('hidden');
+    empty.classList.remove('hidden');
+  }
+}
+
+function fileIcon(ext) {
+  const icons = { pdf:'📄', docx:'📝', doc:'📝', txt:'📃', xlsx:'📊', xls:'📊',
+    epub:'📖', mobi:'📖', mp4:'🎬', mov:'🎬', avi:'🎬', mkv:'🎬', m4v:'🎬', video:'🎬' };
+  return icons[ext] || '📁';
+}
+
+function categoryColor(cat) {
+  const colors = {
+    '康复方案':'bg-blue-50 text-blue-700',
+    '运动医学':'bg-green-50 text-green-700',
+    '训练视频':'bg-purple-50 text-purple-700',
+    '教材资料':'bg-yellow-50 text-yellow-700',
+    '研究论文':'bg-orange-50 text-orange-700',
+    '其他':'bg-gray-100 text-gray-600',
+  };
+  return colors[cat] || 'bg-gray-100 text-gray-600';
+}
+
+function renderCard(item) {
+  const ext = (item.file_type || '').toLowerCase();
+  const icon = fileIcon(ext);
+  const catCls = item.category ? categoryColor(item.category) : '';
+  const chunks = item.chunk_count || 0;
+  const size = item.file_size_kb ? (item.file_size_kb < 1024 ? item.file_size_kb + ' KB' : (item.file_size_kb/1024).toFixed(1) + ' MB') : '';
+  const date = item.created_at ? item.created_at.slice(0,10) : '';
+  return `
+    <div class="file-card bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-3">
+      <div class="flex items-start gap-3">
+        <div class="text-3xl flex-shrink-0 mt-0.5">${icon}</div>
+        <div class="flex-1 min-w-0">
+          <p class="font-medium text-gray-800 text-sm leading-tight truncate" title="${escHtml(item.title)}">${escHtml(item.title)}</p>
+          ${item.category ? `<span class="inline-block mt-1 text-xs px-2 py-0.5 rounded-full ${catCls}">${escHtml(item.category)}</span>` : ''}
+          ${item.description ? `<p class="text-xs text-gray-400 mt-1 line-clamp-2">${escHtml(item.description)}</p>` : ''}
+        </div>
+      </div>
+      <div class="flex items-center gap-2 text-xs text-gray-400 flex-wrap">
+        ${size ? `<span>${size}</span>` : ''}
+        ${chunks ? `<span>· ${chunks} 知识片段</span>` : ''}
+        ${date ? `<span>· ${date}</span>` : ''}
+      </div>
+      <div class="flex gap-2 pt-1 border-t border-gray-50">
+        <button onclick="previewItem(${item.id})" class="flex-1 text-xs py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-primary transition-colors">预览内容</button>
+        <button onclick="deleteItem(${item.id}, this)" class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-red-400 hover:border-red-300 hover:bg-red-50 transition-colors">删除</button>
+      </div>
+    </div>`;
+}
+
+async function previewItem(id) {
+  const modal = document.getElementById('preview-modal');
+  const title = document.getElementById('preview-title');
+  const body  = document.getElementById('preview-body');
+  title.textContent = '加载中…';
+  body.textContent = '';
+  modal.classList.remove('hidden');
+  try {
+    const res = await fetch('/api/knowledge/items/' + id);
+    const data = await res.json();
+    title.textContent = data.title || '预览';
+    body.textContent = data.preview || '（无可预览的文本内容）';
+  } catch(e) {
+    body.textContent = '加载失败';
+  }
+}
+
+function closePreview(e) {
+  if (!e || e.target === document.getElementById('preview-modal') || !e.target.closest) {
+    document.getElementById('preview-modal').classList.add('hidden');
+  }
+}
+
+async function deleteItem(id, btn) {
+  if (!confirm('确认删除这份资料？相关知识片段也将一并删除。')) return;
+  btn.disabled = true;
+  btn.textContent = '删除中…';
+  try {
+    const res = await fetch('/api/knowledge/items/' + id, { method: 'DELETE' });
+    if (res.ok) loadLibrary();
+    else { btn.disabled = false; btn.textContent = '删除'; alert('删除失败'); }
+  } catch(e) { btn.disabled = false; btn.textContent = '删除'; }
+}
+
+// ─── Upload ───────────────────────────────────────────────────────────────────
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  addFiles(Array.from(e.dataTransfer.files));
+});
+fileInput.addEventListener('change', () => {
+  addFiles(Array.from(fileInput.files));
+  fileInput.value = '';
+});
+
+function addFiles(files) {
+  files.forEach(f => {
+    if (!pendingFiles.find(p => p.name === f.name && p.size === f.size)) {
+      pendingFiles.push(f);
+    }
+  });
+  renderPendingList();
+}
+
+function renderPendingList() {
+  const queue = document.getElementById('pending-queue');
+  const list  = document.getElementById('pending-list');
+  const form  = document.getElementById('meta-form');
+  if (pendingFiles.length === 0) {
+    queue.classList.add('hidden');
+    form.classList.add('hidden');
+    return;
+  }
+  queue.classList.remove('hidden');
+  form.classList.remove('hidden');
+  list.innerHTML = pendingFiles.map((f, i) => `
+    <div class="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-2.5">
+      <span class="text-xl">${fileIcon(f.name.split('.').pop().toLowerCase())}</span>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm text-gray-700 truncate">${escHtml(f.name)}</p>
+        <p class="text-xs text-gray-400">${(f.size/1024).toFixed(0)} KB</p>
+      </div>
+      <button onclick="removePending(${i})" class="text-gray-300 hover:text-red-400 transition-colors ml-2">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>`).join('');
+  // Auto-fill title if single file
+  if (pendingFiles.length === 1) {
+    const nameNoExt = pendingFiles[0].name.replace(/\.[^.]+$/, '');
+    const titleEl = document.getElementById('meta-title');
+    if (!titleEl.value) titleEl.value = nameNoExt;
+  }
+}
+
+function removePending(i) {
+  pendingFiles.splice(i, 1);
+  renderPendingList();
+}
+
+function clearPending() {
+  pendingFiles = [];
+  document.getElementById('meta-title').value = '';
+  document.getElementById('meta-category').value = '';
+  document.getElementById('meta-desc').value = '';
+  renderPendingList();
+}
+
+async function startUpload() {
+  if (pendingFiles.length === 0) { alert('请先选择文件'); return; }
+  const btn = document.getElementById('upload-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<svg class="spinner w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> 上传中…';
+
+  const progressDiv = document.getElementById('upload-progress');
+  const progressList = document.getElementById('progress-list');
+  progressDiv.classList.remove('hidden');
+  progressList.innerHTML = pendingFiles.map((f, i) =>
+    `<div id="prog-${i}" class="flex items-center gap-3">
+      <span class="text-sm flex-1 truncate text-gray-700">${escHtml(f.name)}</span>
+      <span id="prog-status-${i}" class="text-xs text-gray-400">等待中</span>
+    </div>`).join('');
+
+  const title    = document.getElementById('meta-title').value.trim();
+  const category = document.getElementById('meta-category').value;
+  const desc     = document.getElementById('meta-desc').value.trim();
+
+  let successCount = 0;
+  for (let i = 0; i < pendingFiles.length; i++) {
+    const f = pendingFiles[i];
+    const statusEl = document.getElementById('prog-status-' + i);
+    statusEl.textContent = '上传中…';
+    statusEl.className = 'text-xs text-blue-500';
+    const fd = new FormData();
+    fd.append('file', f);
+    fd.append('title', title || f.name.replace(/\.[^.]+$/, ''));
+    fd.append('category', category);
+    fd.append('description', desc);
+    try {
+      const res = await fetch('/api/knowledge/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        statusEl.textContent = `完成 (${data.chunks || 0} 片段)`;
+        statusEl.className = 'text-xs text-green-600';
+        successCount++;
+      } else {
+        statusEl.textContent = data.error || '失败';
+        statusEl.className = 'text-xs text-red-500';
+      }
+    } catch(e) {
+      statusEl.textContent = '网络错误';
+      statusEl.className = 'text-xs text-red-500';
+    }
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '开始上传';
+  if (successCount > 0) {
+    clearPending();
+    setTimeout(() => {
+      progressDiv.classList.add('hidden');
+      switchTab('library');
+    }, 1500);
+  }
+}
+
+// ─── Search ───────────────────────────────────────────────────────────────────
+async function doSearch() {
+  const q = document.getElementById('search-input').value.trim();
+  const resultsEl = document.getElementById('search-results');
+  if (!q) { resultsEl.innerHTML = ''; return; }
+
+  resultsEl.innerHTML = `<div class="flex items-center gap-2 text-gray-400 text-sm py-4"><svg class="spinner w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>检索中…</div>`;
+
+  try {
+    const res = await fetch('/api/knowledge/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: q, top_k: 8 })
+    });
+    const data = await res.json();
+    const hits = data.results || [];
+    if (hits.length === 0) {
+      resultsEl.innerHTML = `<div class="text-center py-10 text-gray-400 text-sm">未找到相关内容，请尝试其他关键词</div>`;
+      return;
+    }
+    resultsEl.innerHTML = `<p class="text-xs text-gray-400">找到 ${hits.length} 条相关片段</p>` +
+      hits.map((h, idx) => renderHit(h, q, idx)).join('');
+  } catch(e) {
+    resultsEl.innerHTML = `<div class="text-center py-10 text-red-400 text-sm">检索失败，请重试</div>`;
+  }
+}
+
+function renderHit(hit, query, idx) {
+  const content = highlightKeywords(escHtml(hit.content || ''), query);
+  const score = hit.score ? (hit.score * 100).toFixed(0) : '';
+  return `
+    <div class="bg-white border border-gray-200 rounded-xl p-4 space-y-2">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-mono text-gray-300">#${idx+1}</span>
+          <span class="text-sm font-medium text-gray-700">${escHtml(hit.item_title || '未知来源')}</span>
+          ${hit.category ? `<span class="text-xs px-2 py-0.5 rounded-full ${categoryColor(hit.category)}">${escHtml(hit.category)}</span>` : ''}
+        </div>
+        ${score ? `<span class="text-xs text-gray-300">相关度 ${score}%</span>` : ''}
+      </div>
+      <p class="text-sm text-gray-600 leading-relaxed">${content}</p>
+    </div>`;
+}
+
+function highlightKeywords(html, query) {
+  const words = query.split(/\s+/).filter(w => w.length > 0);
+  words.forEach(w => {
+    const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    html = html.replace(new RegExp(escaped, 'gi'), m => `<mark class="hl">${m}</mark>`);
+  });
+  return html;
+}
+
+// ─── Utils ────────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+loadLibrary();
+</script>
+</body>
+</html>

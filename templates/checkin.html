@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>训练打卡 - 训练伤康复助手</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { primary: '#1E40AF', success: '#10B981', warning: '#F59E0B', danger: '#EF4444' },
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        },
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; }
+    .nav-shadow { box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06); }
+    .card-shadow { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04); }
+
+    /* 阶段切换动画 */
+    .phase { display: none; }
+    .phase.active { display: block; }
+
+    /* 动作卡片 */
+    .ex-card { transition: all 0.15s ease; cursor: pointer; }
+    .ex-card:hover { border-color: #93C5FD; background: #EFF6FF; }
+    .ex-card.done { border-color: #10B981 !important; background: #F0FDF4 !important; }
+    .ex-card.skipped { border-color: #E5E7EB !important; background: #F9FAFB !important; opacity: 0.65; }
+    .ex-card.current { border-color: #1E40AF !important; background: #EFF6FF !important; }
+
+    /* 步骤指示器 */
+    .step-dot { width: 10px; height: 10px; border-radius: 50%; background: #E5E7EB; transition: all 0.2s; }
+    .step-dot.done { background: #10B981; }
+    .step-dot.current { background: #1E40AF; transform: scale(1.4); }
+    .step-dot.skipped { background: #D1D5DB; }
+
+    /* 视频占位 */
+    .video-placeholder { background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #2563eb 100%); }
+    .video-play-btn { width: 64px; height: 64px; background: rgba(255,255,255,0.2); border: 3px solid rgba(255,255,255,0.7); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
+    .video-play-btn:hover { background: rgba(255,255,255,0.35); transform: scale(1.1); }
+    .video-play-btn::after { content: '▶'; color: white; font-size: 1.5rem; margin-left: 5px; }
+
+    /* 拖拽排序 */
+    .drag-item { transition: opacity 0.15s; }
+    .drag-item.dragging { opacity: 0.4; }
+    .drag-item.drag-over { border-color: #3B82F6 !important; background: #DBEAFE !important; }
+
+    /* 感受按钮 */
+    .feeling-btn { transition: all 0.15s; }
+    .feeling-btn.active-good  { background: #D1FAE5; border-color: #10B981; color: #065F46; font-weight: 700; }
+    .feeling-btn.active-ok    { background: #FEF3C7; border-color: #F59E0B; color: #78350F; font-weight: 700; }
+    .feeling-btn.active-bad   { background: #FEE2E2; border-color: #EF4444; color: #7F1D1D; font-weight: 700; }
+
+    input[type=range] { width: 100%; accent-color: #1E40AF; }
+
+    /* 步骤文字指导 */
+    .guide-step { counter-increment: steps; }
+    .guide-step::before { content: counter(steps); width: 20px; height: 20px; background: #1E40AF; color: white; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; flex-shrink: 0; }
+    ol.guide-steps { counter-reset: steps; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- ═══ 顶栏 ═══ -->
+  <header class="h-14 bg-white border-b border-gray-200 nav-shadow flex items-center px-4 gap-3 sticky top-0 z-30">
+    <div class="flex items-center gap-2 flex-shrink-0">
+      <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white text-sm font-bold">医</div>
+      <span class="text-gray-800 font-bold text-base whitespace-nowrap hidden sm:inline">训练伤康复助手</span>
+    </div>
+    <div class="flex-1"></div>
+    <nav class="flex items-center gap-1 flex-shrink-0">
+      <a href="/" class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-primary hover:bg-blue-50 transition-colors whitespace-nowrap">主界面</a>
+      <a href="/profile" class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-primary hover:bg-blue-50 transition-colors whitespace-nowrap">个人档案</a>
+      <a href="/plan" class="px-3 py-1.5 rounded-lg text-sm font-semibold text-primary bg-blue-50 transition-colors whitespace-nowrap">训练计划</a>
+      <a href="/knowledge" class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-primary hover:bg-blue-50 transition-colors whitespace-nowrap">知识库</a>
+      <a href="/companion" class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-primary hover:bg-blue-50 transition-colors whitespace-nowrap">智能学伴</a>
+    </nav>
+  </header>
+
+  <!-- ═══ 无档案提示 ═══ -->
+  <div id="page-no-patient" class="hidden max-w-lg mx-auto px-4 py-20 text-center">
+    <div class="text-5xl mb-4">👤</div>
+    <h2 class="text-lg font-bold text-gray-800 mb-2">请先建立个人档案</h2>
+    <p class="text-gray-400 text-sm mb-6">需要先完成档案录入，系统才能识别您的身份。</p>
+    <a href="/profile" class="inline-block bg-primary text-white px-6 py-2.5 rounded-xl font-medium text-sm hover:bg-blue-800 transition-colors">前往档案</a>
+  </div>
+
+  <!-- ═══ 无方案提示 ═══ -->
+  <div id="page-no-plan" class="hidden max-w-lg mx-auto px-4 py-20 text-center">
+    <div class="text-5xl mb-4">📋</div>
+    <h2 class="text-lg font-bold text-gray-800 mb-2">暂无康复方案</h2>
+    <p class="text-gray-400 text-sm mb-2">请先完善个人档案（填写伤情描述和康复阶段），系统将自动生成初版训练方案。</p>
+    <p class="text-gray-400 text-sm mb-6">也可以与智能助手对话，获取更个性化的方案。</p>
+    <div class="flex gap-3 justify-center">
+      <a href="/profile" class="inline-block bg-primary text-white px-6 py-2.5 rounded-xl font-medium text-sm hover:bg-blue-800 transition-colors">完善个人档案</a>
+      <button onclick="tryGeneratePlan()" class="inline-block border border-primary text-primary px-6 py-2.5 rounded-xl font-medium text-sm hover:bg-blue-50 transition-colors">重新生成方案</button>
+    </div>
+  </div>
+
+  <!-- ═══ 主内容 ═══ -->
+  <div id="page-main" class="hidden">
+
+    <!-- ─── 阶段1：今日计划总览 ─── -->
+    <div id="phase-overview" class="phase active max-w-2xl mx-auto px-4 py-6 space-y-5">
+
+      <!-- 标题 -->
+      <div class="bg-gradient-to-r from-primary to-blue-500 rounded-2xl p-5 text-white card-shadow">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="text-blue-100 text-xs mb-1" id="overview-date">今日</p>
+            <h1 class="text-xl font-bold">今日计划总览</h1>
+            <p id="overview-goal" class="text-blue-100 text-sm mt-1.5 leading-relaxed"></p>
+          </div>
+          <div class="text-4xl opacity-80">🏋️</div>
+        </div>
+        <div class="mt-4 flex gap-3">
+          <div class="flex-1 bg-white bg-opacity-15 rounded-xl px-3 py-2 text-center">
+            <p id="overview-count" class="text-xl font-bold">0</p>
+            <p class="text-blue-100 text-xs">训练动作</p>
+          </div>
+          <div class="flex-1 bg-white bg-opacity-15 rounded-xl px-3 py-2 text-center">
+            <p id="overview-stage" class="text-xl font-bold">-</p>
+            <p class="text-blue-100 text-xs">康复阶段</p>
+          </div>
+          <div class="flex-1 bg-white bg-opacity-15 rounded-xl px-3 py-2 text-center">
+            <p id="overview-est" class="text-xl font-bold">-</p>
+            <p class="text-blue-100 text-xs">预计时长</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 动作列表 -->
+      <div class="bg-white rounded-2xl card-shadow p-5">
+        <h2 class="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+          <span class="w-1 h-4 bg-primary rounded-full"></span>训练动作一览
+        </h2>
+        <div id="overview-list" class="space-y-3"></div>
+      </div>
+
+      <!-- 注意事项 -->
+      <div id="contraindications-card" class="hidden bg-red-50 border border-red-200 rounded-2xl p-4">
+        <h3 class="text-sm font-bold text-danger mb-2">训练禁忌 · 请仔细阅读</h3>
+        <div id="contraindications-list" class="space-y-1"></div>
+      </div>
+
+      <!-- 开始训练按钮 -->
+      <div class="space-y-3">
+        <p class="text-xs text-gray-400 text-center font-medium">选择训练方式</p>
+        <div class="grid grid-cols-2 gap-3">
+          <button onclick="startTraining('ordered')"
+            class="flex flex-col items-center gap-2 py-5 px-4 bg-white hover:bg-blue-50 border-2 border-gray-200 hover:border-primary rounded-2xl card-shadow transition-all group">
+            <span class="text-3xl group-hover:scale-110 transition-transform">📋</span>
+            <span class="text-sm font-bold text-gray-800 group-hover:text-primary transition-colors">按指定顺序</span>
+            <span class="text-xs text-gray-400 text-center">依次完成每个动作</span>
+          </button>
+          <button onclick="startTraining('custom')"
+            class="flex flex-col items-center gap-2 py-5 px-4 bg-white hover:bg-blue-50 border-2 border-gray-200 hover:border-primary rounded-2xl card-shadow transition-all group">
+            <span class="text-3xl group-hover:scale-110 transition-transform">🔀</span>
+            <span class="text-sm font-bold text-gray-800 group-hover:text-primary transition-colors">自定义顺序</span>
+            <span class="text-xs text-gray-400 text-center">拖拽调整训练顺序</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── 阶段2：自定义排序 ─── -->
+    <div id="phase-custom" class="phase max-w-2xl mx-auto px-4 py-6 space-y-4">
+      <div class="flex items-center gap-3 mb-2">
+        <button onclick="showPhase('overview')" class="text-gray-400 hover:text-primary transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </button>
+        <h2 class="text-base font-bold text-gray-800">调整训练顺序</h2>
+      </div>
+      <p class="text-xs text-gray-400 bg-blue-50 rounded-xl px-4 py-2">拖动右侧 ≡ 图标调整顺序，完成后点击「开始训练」</p>
+      <div id="custom-sort-list" class="space-y-2"></div>
+      <button onclick="startTrainingWithOrder()"
+        class="w-full bg-primary hover:bg-blue-800 text-white py-3.5 rounded-xl font-semibold text-sm transition-colors">
+        确认顺序，开始训练 →
+      </button>
+    </div>
+
+    <!-- ─── 阶段3：单动作训练界面 ─── -->
+    <div id="phase-train" class="phase">
+      <!-- 进度条 -->
+      <div class="bg-white border-b border-gray-100 px-4 py-3 sticky top-14 z-20">
+        <div class="max-w-2xl mx-auto">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs text-gray-500">训练进度</span>
+            <span id="train-progress-text" class="text-xs font-bold text-primary"></span>
+          </div>
+          <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+            <div id="train-progress-bar" class="h-full bg-primary rounded-full transition-all" style="width: 0%"></div>
+          </div>
+          <!-- 步骤点 -->
+          <div id="train-steps-dots" class="flex justify-center gap-1.5 mt-2"></div>
+        </div>
+      </div>
+
+      <div class="max-w-2xl mx-auto px-4 py-5 space-y-4">
+
+        <!-- 动作标题 -->
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p id="train-step-label" class="text-xs text-gray-400 mb-0.5">第 1 / 1 个动作</p>
+            <h2 id="train-name" class="text-xl font-bold text-gray-800"></h2>
+          </div>
+          <div class="flex-shrink-0 flex gap-1 mt-1">
+            <button onclick="prevExercise()" id="btn-prev"
+              class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-primary hover:border-primary transition-colors text-sm disabled:opacity-30"
+              disabled>‹</button>
+            <button onclick="nextExercise()" id="btn-next"
+              class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-primary hover:border-primary transition-colors text-sm">›</button>
+          </div>
+        </div>
+
+        <!-- 视频指导区 -->
+        <div class="bg-white rounded-2xl card-shadow overflow-hidden">
+          <!-- 视频 iframe（有链接时显示） -->
+          <div id="video-iframe-wrap" class="hidden w-full" style="aspect-ratio: 16/9;">
+            <iframe id="video-iframe" class="w-full h-full" frameborder="0" allowfullscreen
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+          </div>
+          <!-- 视频占位（无链接时显示） -->
+          <div id="video-placeholder" class="video-placeholder w-full flex flex-col items-center justify-center gap-4 text-white" style="aspect-ratio: 16/9;">
+            <div class="video-play-btn" onclick="showVideoTip()"></div>
+            <p id="video-placeholder-text" class="text-sm text-blue-100 text-center px-4">暂无视频示范</p>
+          </div>
+          <!-- 视频提示输入（管理员可添加视频链接） -->
+          <div id="video-tip-bar" class="hidden px-4 py-2 bg-blue-50 border-t border-blue-100">
+            <p class="text-xs text-primary font-medium mb-1">添加视频链接（YouTube / Bilibili 嵌入地址）</p>
+            <div class="flex gap-2">
+              <input id="video-url-input" type="text" placeholder="https://www.youtube.com/embed/..."
+                class="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-primary transition-colors">
+              <button onclick="applyVideoUrl()" class="text-xs bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-blue-800 transition-colors">应用</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 文字指导 -->
+        <div class="bg-white rounded-2xl card-shadow p-5 space-y-4">
+          <!-- 基础参数 -->
+          <div class="grid grid-cols-3 gap-3">
+            <div class="bg-blue-50 rounded-xl p-3 text-center">
+              <p class="text-xs text-gray-400 mb-1">次数 / 组数</p>
+              <p id="guide-reps" class="text-sm font-bold text-primary">-</p>
+            </div>
+            <div class="bg-orange-50 rounded-xl p-3 text-center">
+              <p class="text-xs text-gray-400 mb-1">休息时间</p>
+              <p id="guide-rest" class="text-sm font-bold text-orange-600">-</p>
+            </div>
+            <div class="bg-red-50 rounded-xl p-3 text-center">
+              <p class="text-xs text-gray-400 mb-1">注意事项</p>
+              <p id="guide-caution-short" class="text-xs font-bold text-danger leading-tight">-</p>
+            </div>
+          </div>
+
+          <!-- 动作说明 -->
+          <div>
+            <p class="text-xs font-bold text-gray-700 mb-2 flex items-center gap-1">
+              <span class="w-1 h-3 bg-primary rounded-full"></span>动作说明
+            </p>
+            <p id="guide-description" class="text-sm text-gray-600 leading-relaxed"></p>
+          </div>
+
+          <!-- 步骤指导 -->
+          <div id="guide-steps-wrap">
+            <p class="text-xs font-bold text-gray-700 mb-2 flex items-center gap-1">
+              <span class="w-1 h-3 bg-success rounded-full"></span>操作步骤
+            </p>
+            <ol id="guide-steps" class="guide-steps space-y-2"></ol>
+          </div>
+
+          <!-- 注意事项全文 -->
+          <div id="guide-caution-wrap" class="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
+            <p class="text-xs font-bold text-yellow-800 mb-1">注意事项</p>
+            <p id="guide-caution" class="text-xs text-yellow-700 leading-relaxed"></p>
+          </div>
+        </div>
+
+        <!-- 本次备注 -->
+        <div class="bg-white rounded-2xl card-shadow p-4">
+          <label class="text-xs font-bold text-gray-500 mb-2 block">本动作备注（可选）</label>
+          <input type="text" id="ex-note-input" placeholder="如：完成了但感觉有点吃力..."
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary transition-colors">
+        </div>
+
+        <!-- 操作按钮 -->
+        <div class="grid grid-cols-2 gap-3">
+          <button onclick="markCurrent('skipped')"
+            class="flex items-center justify-center gap-2 py-3.5 border-2 border-gray-200 rounded-xl text-sm font-semibold text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-all">
+            跳过此动作
+          </button>
+          <button onclick="markCurrent('done')"
+            class="flex items-center justify-center gap-2 py-3.5 bg-success hover:bg-green-600 text-white rounded-xl text-sm font-bold transition-all shadow-sm">
+            ✓ 完成！下一个
+          </button>
+        </div>
+
+        <!-- 结束并记录 -->
+        <button onclick="goToSubmit()"
+          class="w-full py-3 border border-gray-200 rounded-xl text-sm text-gray-500 hover:text-primary hover:border-primary transition-colors">
+          结束训练，去提交打卡 →
+        </button>
+
+      </div>
+    </div>
+
+    <!-- ─── 阶段4：提交打卡 ─── -->
+    <div id="phase-submit" class="phase max-w-2xl mx-auto px-4 py-6 space-y-5">
+
+      <!-- 完成总结 -->
+      <div class="bg-white rounded-2xl card-shadow p-5">
+        <h2 class="text-base font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <span class="w-1 h-4 bg-success rounded-full"></span>本次训练总结
+        </h2>
+        <div id="summary-list" class="space-y-2 mb-4"></div>
+        <div class="grid grid-cols-3 gap-3 pt-3 border-t border-gray-100">
+          <div class="text-center">
+            <p id="sum-done" class="text-2xl font-bold text-success">0</p>
+            <p class="text-xs text-gray-400 mt-0.5">完成</p>
+          </div>
+          <div class="text-center">
+            <p id="sum-skipped" class="text-2xl font-bold text-gray-400">0</p>
+            <p class="text-xs text-gray-400 mt-0.5">跳过</p>
+          </div>
+          <div class="text-center">
+            <p id="sum-rate" class="text-2xl font-bold text-primary">0%</p>
+            <p class="text-xs text-gray-400 mt-0.5">完成率</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 今日状态 -->
+      <div class="bg-white rounded-2xl card-shadow p-5 space-y-4">
+        <h2 class="text-sm font-bold text-gray-700 flex items-center gap-2">
+          <span class="w-1 h-4 bg-warning rounded-full"></span>今日训练状态
+        </h2>
+
+        <div>
+          <label class="text-xs font-semibold text-gray-500 block mb-1">训练后疼痛评分：<span id="pain-display" class="text-primary">5</span> / 10</label>
+          <input type="range" id="pain-slider" min="0" max="10" value="5"
+            oninput="document.getElementById('pain-display').textContent=this.value; updatePainColor(this.value)">
+          <div class="flex justify-between text-xs text-gray-400 mt-1">
+            <span>无痛 0</span><span>5</span><span>10 剧烈</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-xs font-semibold text-gray-500 block mb-2">整体训练感受</label>
+          <div class="flex gap-2">
+            <button type="button" onclick="setFeeling('好')" id="feeling-好"
+              class="feeling-btn flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600">😊 状态好</button>
+            <button type="button" onclick="setFeeling('一般')" id="feeling-一般"
+              class="feeling-btn active-ok flex-1 py-2.5 rounded-xl border text-sm">😐 一般</button>
+            <button type="button" onclick="setFeeling('差')" id="feeling-差"
+              class="feeling-btn flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600">😣 状态差</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-xs font-semibold text-gray-500 block mb-1">症状描述（有不适请填写）</label>
+          <textarea id="symptoms-input" rows="2"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary transition-colors resize-none"
+            placeholder="如：训练后膝盖轻微酸痛，休息后缓解..."></textarea>
+        </div>
+
+        <div>
+          <label class="text-xs font-semibold text-gray-500 block mb-1">其他备注</label>
+          <textarea id="notes-input" rows="2"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary transition-colors resize-none"
+            placeholder="如：今日用弹力带代替哑铃..."></textarea>
+        </div>
+      </div>
+
+      <button id="submit-btn" onclick="submitCheckin()"
+        class="w-full bg-primary hover:bg-blue-800 disabled:bg-gray-300 text-white py-4 rounded-xl font-bold text-sm transition-colors">
+        提交今日打卡
+      </button>
+      <p id="submit-msg" class="text-center text-sm hidden"></p>
+
+    </div>
+
+  </div>
+
+  <script>
+    // ─── 状态 ─────────────────────────────────────────────────────────────────
+    let planRecord = null;
+    let exercises = [];   // {name, description, reps, rest, caution, steps, videoUrl, status:'pending'|'done'|'skipped', note:''}
+    let currentIdx = 0;
+    let currentFeeling = '一般';
+    let videoUrls = {};   // name -> url（localStorage 缓存）
+
+    // ─── 初始化 ───────────────────────────────────────────────────────────────
+    window.addEventListener('DOMContentLoaded', async () => {
+      loadVideoUrlsCache();
+
+      const today = new Date();
+      document.getElementById('overview-date').textContent =
+        today.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
+
+      const me = await apiFetch('/api/me');
+      if (!me) { show('page-no-patient'); return; }
+
+      const planData = await apiFetch('/api/plan/current');
+      if (!planData || !planData.plan) { show('page-no-plan'); return; }
+
+      show('page-main');
+      buildExercises(planData);
+      renderOverview();
+    });
+
+    // ─── 构建动作数据 ──────────────────────────────────────────────────────────
+    function buildExercises(planData) {
+      planRecord = planData;
+      const p = planData.plan || {};
+
+      // 兼容两种方案格式
+      let rawActions = [];
+      if (Array.isArray(p.phases) && p.phases.length > 0) {
+        // AI 四阶段方案：从当前阶段提取
+        const cur = p.phases.find(ph => ph.is_current) || p.phases[0];
+        planRecord._currentPhase = cur; // 供 renderOverview 使用
+        rawActions = (cur.exercises || []).map(e => ({
+          '名称': e.name  || '',
+          '次数': e.freq  || '',
+          '说明': e.focus || '',
+          '休息': '',
+          '注意': '',
+          '步骤': '',
+        }));
+      } else {
+        // 规则方案：直接用中文键
+        rawActions = p['动作'] || p.actions || [];
+      }
+
+      exercises = rawActions.map(a => {
+        const name = a['名称'] || a.name || '';
+        return {
+          name,
+          description: a['说明'] || a.description || '',
+          reps: a['次数'] || a.reps || '',
+          rest: a['休息'] || a.rest || '适当休息',
+          caution: a['注意'] || a.caution || '',
+          steps: parseSteps(a['步骤'] || a['说明'] || a.description || ''),
+          videoUrl: videoUrls[name] || '',
+          status: 'pending',
+          note: '',
+        };
+      });
+    }
+
+    function parseSteps(text) {
+      if (!text) return [];
+      // 若包含数字序号，按序号分割；否则按句号分割
+      if (/^\d+[.、）)]/.test(text)) {
+        return text.split(/\d+[.、）)]\s*/).filter(Boolean);
+      }
+      return text.split(/[。；;]/).map(s => s.trim()).filter(s => s.length > 2);
+    }
+
+    // ─── 总览渲染 ─────────────────────────────────────────────────────────────
+    function renderOverview() {
+      const p = planRecord.plan || {};
+      const cur = planRecord._currentPhase; // AI 方案当前阶段（若有）
+      document.getElementById('overview-goal').textContent =
+        (cur ? cur.goal : p['目标']) || '';
+      document.getElementById('overview-count').textContent = exercises.length;
+      document.getElementById('overview-stage').textContent =
+        (cur ? cur.stage : null) || p.stage || planRecord.stage || '-';
+
+      // 预计时长：每个动作约5分钟
+      const mins = Math.max(exercises.length * 5, 10);
+      document.getElementById('overview-est').textContent = mins + '分';
+
+      // 动作列表
+      const list = document.getElementById('overview-list');
+      list.innerHTML = exercises.map((ex, i) => `
+        <div class="flex items-center gap-3 py-2.5 ${i < exercises.length-1 ? 'border-b border-gray-100' : ''}">
+          <div class="w-7 h-7 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-xs font-bold text-primary flex-shrink-0">${i+1}</div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-gray-800">${esc(ex.name)}</p>
+            ${ex.description ? `<p class="text-xs text-gray-400 truncate mt-0.5">${esc(ex.description)}</p>` : ''}
+          </div>
+          <span class="text-xs bg-blue-50 text-primary px-2 py-0.5 rounded-full flex-shrink-0">${esc(ex.reps)}</span>
+        </div>
+      `).join('');
+
+      // 禁忌
+      const contra = p['禁忌'] || p.contraindications || [];
+      if (contra.length > 0) {
+        document.getElementById('contraindications-card').classList.remove('hidden');
+        document.getElementById('contraindications-list').innerHTML =
+          contra.map(c => `<p class="text-xs text-danger flex gap-1"><span>·</span>${esc(c)}</p>`).join('');
+      }
+    }
+
+    // ─── 开始训练 ─────────────────────────────────────────────────────────────
+    function startTraining(mode) {
+      if (exercises.length === 0) { alert('暂无训练动作，请先获取康复方案'); return; }
+      if (mode === 'custom') {
+        renderCustomSort();
+        showPhase('custom');
+      } else {
+        exercises.forEach(e => e.status = 'pending');
+        currentIdx = 0;
+        showPhase('train');
+        renderTrainView();
+      }
+    }
+
+    // ─── 自定义排序 ────────────────────────────────────────────────────────────
+    function renderCustomSort() {
+      const container = document.getElementById('custom-sort-list');
+      container.innerHTML = exercises.map((ex, i) => `
+        <div class="drag-item bg-white border-2 border-gray-200 rounded-xl p-3 flex items-center gap-3 cursor-grab"
+          draggable="true" data-idx="${i}"
+          ondragstart="onDragStart(event,${i})"
+          ondragover="onDragOver(event)"
+          ondrop="onDrop(event,${i})"
+          ondragend="onDragEnd(event)">
+          <div class="w-7 h-7 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-xs font-bold text-primary flex-shrink-0">${i+1}</div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-gray-800">${esc(ex.name)}</p>
+            <p class="text-xs text-gray-400">${esc(ex.reps)}</p>
+          </div>
+          <div class="text-gray-300 text-lg select-none px-2">≡</div>
+        </div>
+      `).join('');
+    }
+
+    let dragSrc = null;
+    function onDragStart(e, idx) { dragSrc = idx; e.currentTarget.classList.add('dragging'); }
+    function onDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+    function onDrop(e, targetIdx) {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      if (dragSrc === null || dragSrc === targetIdx) return;
+      const tmp = exercises[dragSrc];
+      exercises.splice(dragSrc, 1);
+      exercises.splice(targetIdx, 0, tmp);
+      renderCustomSort();
+    }
+    function onDragEnd(e) {
+      dragSrc = null;
+      document.querySelectorAll('.drag-item').forEach(el => el.classList.remove('dragging', 'drag-over'));
+    }
+
+    function startTrainingWithOrder() {
+      exercises.forEach(e => e.status = 'pending');
+      currentIdx = 0;
+      showPhase('train');
+      renderTrainView();
+    }
+
+    // ─── 训练视图 ─────────────────────────────────────────────────────────────
+    function renderTrainView() {
+      const total = exercises.length;
+      const ex = exercises[currentIdx];
+
+      // 进度
+      const done = exercises.filter(e => e.status !== 'pending').length;
+      const pct = Math.round(done / total * 100);
+      document.getElementById('train-progress-text').textContent = `${done} / ${total}`;
+      document.getElementById('train-progress-bar').style.width = pct + '%';
+
+      // 步骤点
+      const dotsEl = document.getElementById('train-steps-dots');
+      dotsEl.innerHTML = exercises.map((e, i) => {
+        let cls = 'step-dot';
+        if (e.status === 'done') cls += ' done';
+        else if (e.status === 'skipped') cls += ' skipped';
+        else if (i === currentIdx) cls += ' current';
+        return `<div class="${cls}" title="${esc(e.name)}"></div>`;
+      }).join('');
+
+      // 标题
+      document.getElementById('train-step-label').textContent = `第 ${currentIdx + 1} / ${total} 个动作`;
+      document.getElementById('train-name').textContent = ex.name;
+
+      // 视频
+      const videoUrl = ex.videoUrl || '';
+      if (videoUrl) {
+        document.getElementById('video-iframe').src = videoUrl;
+        document.getElementById('video-iframe-wrap').classList.remove('hidden');
+        document.getElementById('video-placeholder').classList.add('hidden');
+      } else {
+        document.getElementById('video-iframe-wrap').classList.add('hidden');
+        document.getElementById('video-placeholder').classList.remove('hidden');
+        document.getElementById('video-placeholder-text').textContent = `「${ex.name}」暂无视频示范`;
+      }
+      document.getElementById('video-tip-bar').classList.add('hidden');
+      document.getElementById('video-url-input').value = videoUrl;
+
+      // 文字指导
+      document.getElementById('guide-reps').textContent = ex.reps || '-';
+      document.getElementById('guide-rest').textContent = ex.rest || '适当休息';
+      document.getElementById('guide-caution-short').textContent = ex.caution ? ex.caution.slice(0, 10) + (ex.caution.length > 10 ? '...' : '') : '-';
+      document.getElementById('guide-description').textContent = ex.description || '-';
+
+      // 步骤
+      const stepsEl = document.getElementById('guide-steps');
+      const stepsWrap = document.getElementById('guide-steps-wrap');
+      if (ex.steps && ex.steps.length > 0) {
+        stepsWrap.classList.remove('hidden');
+        stepsEl.innerHTML = ex.steps.map(s => `
+          <li class="guide-step flex items-start gap-2 text-sm text-gray-700">${esc(s)}</li>
+        `).join('');
+      } else {
+        stepsWrap.classList.add('hidden');
+      }
+
+      // 注意事项
+      const cautionWrap = document.getElementById('guide-caution-wrap');
+      if (ex.caution) {
+        cautionWrap.classList.remove('hidden');
+        document.getElementById('guide-caution').textContent = ex.caution;
+      } else {
+        cautionWrap.classList.add('hidden');
+      }
+
+      // 备注恢复
+      document.getElementById('ex-note-input').value = ex.note || '';
+
+      // 前后按钮
+      document.getElementById('btn-prev').disabled = currentIdx === 0;
+      document.getElementById('btn-next').disabled = currentIdx === total - 1;
+    }
+
+    function prevExercise() {
+      saveCurrentNote();
+      if (currentIdx > 0) { currentIdx--; renderTrainView(); }
+    }
+
+    function nextExercise() {
+      saveCurrentNote();
+      if (currentIdx < exercises.length - 1) { currentIdx++; renderTrainView(); }
+    }
+
+    function saveCurrentNote() {
+      exercises[currentIdx].note = document.getElementById('ex-note-input').value.trim();
+    }
+
+    function markCurrent(status) {
+      saveCurrentNote();
+      exercises[currentIdx].status = status;
+      if (currentIdx < exercises.length - 1) {
+        currentIdx++;
+        renderTrainView();
+      } else {
+        // 所有动作走完，去提交
+        goToSubmit();
+      }
+    }
+
+    // ─── 视频相关 ─────────────────────────────────────────────────────────────
+    function showVideoTip() {
+      document.getElementById('video-tip-bar').classList.toggle('hidden');
+    }
+
+    function applyVideoUrl() {
+      const url = document.getElementById('video-url-input').value.trim();
+      exercises[currentIdx].videoUrl = url;
+      videoUrls[exercises[currentIdx].name] = url;
+      saveVideoUrlsCache();
+      renderTrainView();
+    }
+
+    function saveVideoUrlsCache() {
+      try { localStorage.setItem('rehab_video_urls', JSON.stringify(videoUrls)); } catch (e) {}
+    }
+    function loadVideoUrlsCache() {
+      try { videoUrls = JSON.parse(localStorage.getItem('rehab_video_urls') || '{}'); } catch (e) {}
+    }
+
+    // ─── 提交页 ───────────────────────────────────────────────────────────────
+    function goToSubmit() {
+      saveCurrentNote();
+      const doneCount = exercises.filter(e => e.status === 'done').length;
+      const skipCount = exercises.filter(e => e.status === 'skipped').length;
+      const rate = exercises.length > 0 ? Math.round(doneCount / exercises.length * 100) : 0;
+
+      document.getElementById('sum-done').textContent = doneCount;
+      document.getElementById('sum-skipped').textContent = skipCount;
+      document.getElementById('sum-rate').textContent = rate + '%';
+
+      // 摘要列表
+      document.getElementById('summary-list').innerHTML = exercises.map(ex => {
+        const icon = ex.status === 'done' ? '✅' : ex.status === 'skipped' ? '⏭️' : '⭕';
+        const textColor = ex.status === 'done' ? 'text-success' : ex.status === 'skipped' ? 'text-gray-400' : 'text-warning';
+        return `
+          <div class="flex items-center gap-3 py-1.5 border-b border-gray-50 last:border-0">
+            <span class="text-base">${icon}</span>
+            <span class="text-sm flex-1 ${ex.status !== 'done' ? 'text-gray-400' : 'text-gray-700 font-medium'}">${esc(ex.name)}</span>
+            <span class="text-xs ${textColor} font-medium">${ex.status === 'done' ? '完成' : ex.status === 'skipped' ? '跳过' : '未做'}</span>
+          </div>`;
+      }).join('');
+
+      showPhase('submit');
+    }
+
+    // ─── 提交打卡 ─────────────────────────────────────────────────────────────
+    async function submitCheckin() {
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true; btn.textContent = '提交中...';
+
+      const payload = {
+        plan_id: planRecord?.id,
+        exercises: exercises.map(ex => ({
+          name: ex.name,
+          completed: ex.status === 'done',
+          skipped: ex.status === 'skipped',
+          notes: ex.note,
+        })),
+        pain_level: parseInt(document.getElementById('pain-slider').value),
+        overall_feeling: currentFeeling,
+        symptoms: document.getElementById('symptoms-input').value.trim(),
+        notes: document.getElementById('notes-input').value.trim(),
+      };
+
+      try {
+        const resp = await fetch('/api/checkin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          showMsg(data.error || '提交失败', 'error');
+        } else {
+          showMsg('✅ 打卡成功！记录已保存', 'success');
+          setTimeout(() => { window.location.href = '/'; }, 1800);
+        }
+      } catch (e) {
+        showMsg('网络错误：' + e.message, 'error');
+      }
+
+      btn.disabled = false; btn.textContent = '提交今日打卡';
+    }
+
+    // ─── 感受 / 疼痛 ──────────────────────────────────────────────────────────
+    function setFeeling(val) {
+      currentFeeling = val;
+      ['好', '一般', '差'].forEach(f => {
+        document.getElementById('feeling-' + f).className = 'feeling-btn flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600';
+      });
+      const cls = val === '好' ? 'active-good' : val === '一般' ? 'active-ok' : 'active-bad';
+      document.getElementById('feeling-' + val).className = `feeling-btn ${cls} flex-1 py-2.5 rounded-xl border text-sm`;
+    }
+
+    function updatePainColor(val) {
+      const el = document.getElementById('pain-display');
+      el.className = parseInt(val) <= 3 ? 'text-success font-bold' : parseInt(val) <= 6 ? 'text-warning font-bold' : 'text-danger font-bold';
+    }
+
+    // ─── 阶段切换 ─────────────────────────────────────────────────────────────
+    function showPhase(name) {
+      document.querySelectorAll('.phase').forEach(el => el.classList.remove('active'));
+      document.getElementById('phase-' + name).classList.add('active');
+      window.scrollTo(0, 0);
+    }
+
+    // ─── 无方案时重新生成 ──────────────────────────────────────────────────────
+    async function tryGeneratePlan() {
+      const btn = event.target;
+      btn.disabled = true; btn.textContent = '生成中...';
+      try {
+        const resp = await fetch('/api/plan/generate', { method: 'POST' });
+        const data = await resp.json();
+        if (resp.ok && data.success) {
+          location.reload();
+        } else {
+          alert(data.error || '生成失败，请先完善个人档案');
+          btn.disabled = false; btn.textContent = '重新生成方案';
+        }
+      } catch (e) {
+        alert('请求失败：' + e.message);
+        btn.disabled = false; btn.textContent = '重新生成方案';
+      }
+    }
+
+    // ─── 工具 ─────────────────────────────────────────────────────────────────
+    function show(id) { document.getElementById(id).classList.remove('hidden'); }
+
+    async function apiFetch(url) {
+      const resp = await fetch(url);
+      if (!resp.ok) return null;
+      return resp.json();
+    }
+
+    function showMsg(text, type) {
+      const el = document.getElementById('submit-msg');
+      el.textContent = text;
+      el.className = `text-center text-sm ${type === 'success' ? 'text-success' : 'text-danger'}`;
+      el.classList.remove('hidden');
+    }
+
+    function esc(str) {
+      return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+  </script>
+</body>
+</html>
